@@ -1,10 +1,19 @@
 {
-  "url": "https://supplies-dam-susan-bookstore.trycloudflare.com",
-  "mirrors": [
-    "https://supplies-dam-susan-bookstore.trycloudflare.com"
+  "checked": "2026-08-13T08:50:33.911Z",
+  "anyLive": true,
+  "writer": null,
+  "writerChain": null,
+  "writerActs": null,
+  "hosts": [
+    {
+      "url": "https://supplies-dam-susan-bookstore.trycloudflare.com",
+      "live": true,
+      "writer": false,
+      "chain": null,
+      "epoch": null,
+      "acts": null,
+      "error": null
+    }
   ],
-  "at": "2026-08-13T08:01:02.645Z",
-  "note": "A host is answering at `url`. Acts may be sent there.",
-  "acts": 0,
-  "writtenBy": "ops/publish.mjs"
+  "note": "Written every 15 minutes by a scheduled GitHub Action on machines nobody here owns, so it keeps answering when every machine of ours is off. It probes the hosts named in host.json and repoints that file; it never touches the record."
 }
