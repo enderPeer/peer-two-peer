@@ -52,84 +52,26 @@
 //   BAD_REQUEST     an act body cannot be canonically encoded, so it cannot be
 //                   signed: whatever would be signed is not what would be sent.
 
-// ── canonical JSON, browser-side ───────────────────────────────────────────
+// ── canonical JSON ─────────────────────────────────────────────────────────
 //
-// core/canonical.mjs is the authority for this encoding and it cannot be
-// imported here: it opens with `import { createHash } from 'node:crypto'`, which
-// no browser resolves. So the encoder is restated, and test/client.test.mjs
-// asserts byte identity against the real one over a battery of act bodies —
-// including the one case that looks like a curiosity and is not, a comment whose
-// text begins with the bigint sigil.
+// Imported, not restated. This block used to carry a second copy of the encoder
+// with a note explaining that core/canonical.mjs "cannot be imported here: it
+// opens with `import { createHash } from 'node:crypto'`, which no browser
+// resolves" — and a byte-identity test defending the copy.
+//
+// That reason is gone: canonical.mjs no longer imports node:crypto, because the
+// shared layer has to run unchanged in a browser for Rule 2 to mean anything.
+// So the copy is gone with it. Every signature this file produces is now taken
+// over bytes the writer's own encoder produced, rather than over bytes a second
+// implementation agreed with as of the last time somebody ran the test.
 //
 // Signing an encoding that differs from the writer's by one byte produces a
 // signature that recovers to a different address, and the refusal
-// (BAD_SIGNATURE) says nothing about which byte. That test is the whole reason
-// this restatement is safe to ship.
+// (BAD_SIGNATURE) says nothing about which byte. One implementation is the only
+// arrangement in which that failure cannot arise.
 
-const BIGINT_SIGIL = '~';
-const MAX_DEPTH = 64;
-
-function quantize(x) {
-  if (!Number.isFinite(x)) throw new Error('BAD_REQUEST');
-  if (Number.isInteger(x)) return x === 0 ? 0 : x;
-  const scaled = Math.round(x * 1e9);
-  if (!Number.isSafeInteger(scaled)) return x;
-  const r = scaled / 1e9;
-  return Object.is(r, -0) ? 0 : r;
-}
-
-function encodeString(s) {
-  return JSON.stringify(s.startsWith(BIGINT_SIGIL) ? BIGINT_SIGIL + s : s);
-}
-
-function isPlainValue(v) {
-  const tag = Object.prototype.toString.call(v);
-  if (tag === '[object Array]') return true;
-  if (tag !== '[object Object]') return false;
-  const proto = Object.getPrototypeOf(v);
-  return proto === Object.prototype || proto === null;
-}
-
-/**
- * The canonical JSON of a value: sorted keys, the bigint sigil, one byte string
- * per value. Identical to `canonicalJson` in core/canonical.mjs, refusing with a
- * catalogued code instead of a sentence.
- */
-export function canonicalJson(value, seen, depth) {
-  if (value === null) return 'null';
-  const t = typeof value;
-  if (t === 'boolean') return value ? 'true' : 'false';
-  if (t === 'bigint') return JSON.stringify(BIGINT_SIGIL + value.toString(10));
-  if (t === 'number') return JSON.stringify(quantize(value));
-  if (t === 'string') return encodeString(value);
-  if (t !== 'object') throw new Error('BAD_REQUEST');
-  if (!isPlainValue(value)) throw new Error('BAD_REQUEST');
-  depth = depth || 0;
-  if (depth >= MAX_DEPTH) throw new Error('BAD_REQUEST');
-  seen = seen || new Set();
-  if (seen.has(value)) throw new Error('BAD_REQUEST');
-  seen.add(value);
-  let out;
-  if (Array.isArray(value)) {
-    const parts = [];
-    for (const x of value) {
-      if (x === undefined) throw new Error('BAD_REQUEST');
-      parts.push(canonicalJson(x, seen, depth + 1));
-    }
-    out = '[' + parts.join(',') + ']';
-  } else {
-    const keys = Object.keys(value).sort();
-    const parts = [];
-    for (const k of keys) {
-      const x = value[k];
-      if (x === undefined) continue;
-      parts.push(encodeString(k) + ':' + canonicalJson(x, seen, depth + 1));
-    }
-    out = '{' + parts.join(',') + '}';
-  }
-  seen.delete(value);
-  return out;
-}
+export { canonicalJson } from '../core/canonical.mjs';
+import { canonicalJson } from '../core/canonical.mjs';
 
 /**
  * The body that is signed: the act without `sig` and without `i`.
