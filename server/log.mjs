@@ -187,6 +187,23 @@ export async function openLog({ dir, file = LOG_FILE } = {}) {
   return {
     path,
 
+    /**
+     * The log exactly as it sits on disk.
+     *
+     * Read from the file rather than rebuilt by re-encoding `acts`, and the
+     * difference is the whole point: a verifier checking a merkle root needs the
+     * bytes that were hashed. Re-serialising would produce something that looks
+     * the same and, after any lawful redaction, is not — a redacted line is
+     * padded in place, and no encoder reproduces padding.
+     *
+     * This is what GET /api/v1/acts serves and what the archive job pulls.
+     */
+    async raw() {
+      const buf = Buffer.alloc(size);
+      if (size > 0) await fh.read(buf, 0, size, 0);
+      return buf;
+    },
+
     /** Bytes dropped from an incomplete last line when this log was opened. */
     get truncatedBytes() {
       return truncatedBytes;

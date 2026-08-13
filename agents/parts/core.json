@@ -1,7 +1,7 @@
 {
   "name": "core",
-  "title": "The one rulebook — pure, isomorphic, dependency-free",
-  "summary": "Every number in this network — balances, feeds, earnings, pool reserves, capacity payouts — is a pure function of the act log, and this part is that function. The server, the browser and the chain builder import the same file; none of them may fork it, and none of them may accept an act that replay would skip.",
+  "title": "The one rulebook \u2014 pure, isomorphic, dependency-free",
+  "summary": "Every number in this network \u2014 balances, feeds, earnings, pool reserves, capacity payouts \u2014 is a pure function of the act log, and this part is that function. The server, the browser and the chain builder import the same file; none of them may fork it, and none of them may accept an act that replay would skip.",
   "owns": [
     "core/replay.mjs",
     "core/params.mjs",
@@ -19,9 +19,12 @@
     "test/placement.test.mjs",
     "test/helpers/**",
     "test/README.md",
-    "core/README.md"
+    "core/README.md",
+    ".gitattributes"
   ],
-  "dependsOn": ["economics"],
+  "dependsOn": [
+    "economics"
+  ],
   "interfaces": [
     "core/replay.mjs  export const EDITION",
     "core/replay.mjs  export function emptyWorld(params): World",
@@ -73,7 +76,7 @@
     },
     {
       "statement": "applyAct is total. A rejected act leaves the world identical in content to the world before it, and no number ever becomes NaN.",
-      "heldBy": "test/hostile-acts.test.mjs :: \"nothing above changed the world, and the world still encodes\" — the whole world is encoded canonically before and after every hostile act, and the encoder refuses non-finite numbers, so a NaN that reached the world throws rather than slipping past as null"
+      "heldBy": "test/hostile-acts.test.mjs :: \"nothing above changed the world, and the world still encodes\" \u2014 the whole world is encoded canonically before and after every hostile act, and the encoder refuses non-finite numbers, so a NaN that reached the world throws rather than slipping past as null"
     },
     {
       "statement": "Balances, reserves, supply and prices are BigInt end to end. No Number ever lands in one.",
@@ -84,7 +87,7 @@
       "heldBy": "test/replay.test.mjs :: \"replay is deterministic, and resuming is the same as replaying\""
     },
     {
-      "statement": "Weight is linear in PTP destroyed — never in account count, never in balance. Twenty puppets sharing a stake weigh what one account holding it weighs, exactly.",
+      "statement": "Weight is linear in PTP destroyed \u2014 never in account count, never in balance. Twenty puppets sharing a stake weigh what one account holding it weighs, exactly.",
       "heldBy": "test/sybil.test.mjs :: \"a stake split across twenty puppets returns exactly what one account returns\""
     },
     {
@@ -100,7 +103,7 @@
       "heldBy": "test/one-rulebook.test.mjs :: \"EDITION is the sha256 of core/replay.mjs as it sits on disk\""
     },
     {
-      "statement": "A view is billable only when it met the viewport share, the dwell, the cooldown and the per-pair cap — and the viewer pays the full price every time while the creator's credit does not decay.",
+      "statement": "A view is billable only when it met the viewport share, the dwell, the cooldown and the per-pair cap \u2014 and the viewer pays the full price every time while the creator's credit does not decay.",
       "heldBy": "test/replay.test.mjs :: \"the viewer pays full price every time, and the credit does not decay\""
     },
     {
@@ -109,18 +112,18 @@
     },
     {
       "statement": "Every refusal carries a stable code from core/errors.mjs plus msg, why and next, so a bot never parses a sentence to learn what happened. Codes are API; rewording a message is free, changing a code is not.",
-      "heldBy": "test/hostile-acts.test.mjs :: \"a refused act does not advance the log, the epoch or an account\" — every case in that file asserts the code is in the catalogue and that all four fields are non-empty"
+      "heldBy": "test/hostile-acts.test.mjs :: \"a refused act does not advance the log, the epoch or an account\" \u2014 every case in that file asserts the code is in the catalogue and that all four fields are non-empty"
     }
   ],
   "brief": {
     "mission": "Write the function the whole network is a projection of. It is imported by a node server, a browser and an offline verifier, so it may touch nothing that only one of them has: no node: builtins beyond node:crypto used through a shim, no DOM, no fs, no network, no clock. It is the only file in this repository where a mistake is not a bug but a different network.",
     "readFirst": [
-      "docs/ARCHITECTURE.md sections 0, 4, 5, 6, 7 — the five rules, the act table, the World shape, the post lifecycle, capacity",
-      "C:/Users/User/Desktop/ToRuleThemAll/webapp/errors.mjs — the refusal catalogue pattern, read for register not for content",
-      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain/ — canonical encoding and merkle, prior art, read-only"
+      "docs/ARCHITECTURE.md sections 0, 4, 5, 6, 7 \u2014 the five rules, the act table, the World shape, the post lifecycle, capacity",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/errors.mjs \u2014 the refusal catalogue pattern, read for register not for content",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain/ \u2014 canonical encoding and merkle, prior art, read-only"
     ],
     "rules": [
-      "core/canonical.mjs, core/merkle.mjs, core/errors.mjs, core/placement.mjs and core/params.mjs have no signature fixed by ARCHITECTURE. You choose their exports — but once chosen they are contract, so name them plainly and list them at the top of the file, because five other parts import them.",
+      "core/canonical.mjs, core/merkle.mjs, core/errors.mjs, core/placement.mjs and core/params.mjs have no signature fixed by ARCHITECTURE. You choose their exports \u2014 but once chosen they are contract, so name them plainly and list them at the top of the file, because five other parts import them.",
       "actError is the validator both readers use. The server calls it before appending; the browser calls it before offering a button. The refusal sentence is identical in both places because it is the same line of code.",
       "Every act is signed with the account's wallet key (EIP-191 personal_sign over the canonical act body minus sig). There are no PINs, no passwords and no server-held secrets. Verification belongs to the server, but the canonical body that gets signed is defined here.",
       "Canonical text is read back with parseCanonical from core/canonical.mjs, never with a bare JSON.parse. A log written canonically and read with JSON.parse loses the bigint sigil, and that is a rule 2 break wearing a parser's clothes."
@@ -131,7 +134,7 @@
       "every exported function has a comment saying what it does and why it is shaped that way"
     ],
     "traps": [
-      "A rejected act must not leave a half-written account object behind. Validate fully, then mutate — or mutate a draft and commit it only on success.",
+      "A rejected act must not leave a half-written account object behind. Validate fully, then mutate \u2014 or mutate a draft and commit it only on success.",
       "JSON.parse of a big integer silently loses precision. Amounts arrive as decimal strings and become BigInt at the boundary; never as Number.",
       "Post expiry is not a timer. It is a state read from the timestamp of the act being applied, so two machines replaying the same log at different times get the same world."
     ]

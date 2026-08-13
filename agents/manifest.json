@@ -4,24 +4,31 @@
   "node": ">=20.11",
   "why": "Six parts, six agents, one repository, no coordination between them at build time. The split is written down here so it can be checked mechanically instead of remembered.",
   "readFirst": [
-    "docs/ARCHITECTURE.md — binding. Every interface in it is a contract between parts.",
-    "docs/AGENTS.md — who the fleet is and what an agent holds itself to.",
-    "agents/parts/<your part>.json — your own manifest: what you own, what you must never break."
+    "docs/ARCHITECTURE.md \u2014 binding. Every interface in it is a contract between parts.",
+    "docs/AGENTS.md \u2014 who the fleet is and what an agent holds itself to.",
+    "agents/parts/<your part>.json \u2014 your own manifest: what you own, what you must never break."
   ],
   "contract": [
     "ESM only (.mjs, \"type\": \"module\"). Node >= 20.11.",
     "Zero new dependencies. Runtime dep is ethers, devDep is solc, node: builtins are free. Do not add to package.json.",
     "All money, supply, reserve and price arithmetic is BigInt. No float ever touches a balance, a reserve or a price. Floats are permitted only inside weighting math that is immediately quantised back to integers.",
     "Never write a file outside your own \"owns\" list. Another agent owns the rest and is writing at the same time.",
-    "Implement the interfaces in docs/ARCHITECTURE.md exactly. Do not rename, do not widen a signature, do not add a parameter. If the spec is wrong, report it — do not fix it unilaterally.",
+    "Implement the interfaces in docs/ARCHITECTURE.md exactly. Do not rename, do not widen a signature, do not add a parameter. If the spec is wrong, report it \u2014 do not fix it unilaterally.",
     "Every exported function carries a comment saying what it does and why it is shaped that way. Comments explain mechanism and reasoning, not syntax.",
     "Refusals go through core/errors.mjs and carry code, why and fix. Never invent a bare throw with a sentence in it.",
     "Report honestly. A check you could not make pass is an open issue, not a success."
   ],
-  "parts": ["core", "economics", "server", "chain", "app", "contracts"],
+  "parts": [
+    "core",
+    "economics",
+    "server",
+    "chain",
+    "app",
+    "contracts"
+  ],
   "fleet": {
     "name": "fleet",
-    "title": "The build fleet itself — manifests, runner, workflows, and the agent documentation",
+    "title": "The build fleet itself \u2014 manifests, runner, workflows, and the agent documentation",
     "summary": "Not a part of the software. It owns the files that describe who owns the software, and the scheduled jobs that keep the record alive on machines nobody owns.",
     "owns": [
       "agents/**",
@@ -67,15 +74,15 @@
       },
       {
         "statement": "An invariant a part states and nothing holds is declared open with a reason, never deleted and never disguised as a passing check. Every command here prints the open list in full.",
-        "heldBy": "node agents/run.mjs --audit — a part's \"open\" entries must each carry a statement and a reason, and loadFleet refuses the manifest otherwise"
+        "heldBy": "node agents/run.mjs --audit \u2014 a part's \"open\" entries must each carry a statement and a reason, and loadFleet refuses the manifest otherwise"
       },
       {
         "statement": "A check whose toolchain is absent is reported SKIP and never PASS, and CI runs the gate with --no-skip after installing, so a skip cannot become permanent by accident.",
-        "heldBy": ".github/workflows/agents.yml — the part matrix installs the dependencies and then runs node agents/run.mjs <part> --no-skip"
+        "heldBy": ".github/workflows/agents.yml \u2014 the part matrix installs the dependencies and then runs node agents/run.mjs <part> --no-skip"
       },
       {
         "statement": "A part's declared checks are shell commands that a fresh checkout can run. No hidden state, no machine of ours.",
-        "heldBy": ".github/workflows/agents.yml — the matrix runs each one on a clean GitHub runner"
+        "heldBy": ".github/workflows/agents.yml \u2014 the matrix runs each one on a clean GitHub runner"
       }
     ]
   },
@@ -87,6 +94,9 @@
     ".vscode/**",
     ".idea/**",
     "scratch/**",
-    "site/**"
+    "site/**",
+    "tunnel-url.txt",
+    "build/**",
+    "*.log"
   ]
 }

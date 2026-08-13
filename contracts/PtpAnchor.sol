@@ -409,14 +409,30 @@ contract PtpAnchor {
         require(p.state == STATE_LIVE, "PTP-ANCHOR: post is not live");
         require(block.timestamp >= p.expires, "PTP-ANCHOR: post has not lapsed yet");
 
-        // Read the payload fields out before they are cleared; the event is the
-        // only place they will exist after this transaction.
-        bytes32 cid = p.cid;
-        uint64 bytesLen = p.bytesLen;
-        uint32 w = p.w;
-        uint32 h = p.h;
-        uint64 publishedAt = p.publishedAt;
-        uint64 expires = p.expires;
+        // EMIT FIRST, THEN CLEAR — and read the fields straight out of storage
+        // rather than copying them into locals.
+        //
+        // The original held six locals alive across the clear so the event could
+        // report pre-clear values, and with the ten event arguments that is more
+        // than the EVM's reachable stack: solc refused the whole file with
+        // "Stack too deep" and nothing in this folder had ever been compiled.
+        // Ordering the emit before the writes is not a workaround for that; it
+        // is the version that never needed the locals. A log and a storage write
+        // in one transaction are atomic together, so no observer can see the
+        // event without also seeing the cleared post, and the values the event
+        // carries are the same values either way.
+        emit Settled(
+            postId,
+            p.author,
+            p.cid,
+            p.bytesLen,
+            p.w,
+            p.h,
+            p.publishedAt,
+            p.expires,
+            tombstone,
+            uint64(block.timestamp)
+        );
 
         // Structure kept.
         p.state = STATE_SETTLED;
@@ -427,10 +443,6 @@ contract PtpAnchor {
         p.bytesLen = 0;
         p.w = 0;
         p.h = 0;
-
-        emit Settled(
-            postId, p.author, cid, bytesLen, w, h, publishedAt, expires, tombstone, uint64(block.timestamp)
-        );
     }
 
     /**

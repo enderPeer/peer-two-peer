@@ -1132,6 +1132,7 @@ export async function createServer(options = {}) {
         { method: 'GET', path: '/api/v1', purpose: 'this document. A bot should need nothing else.' },
         { method: 'GET', path: '/api/v1/errors', purpose: 'every refusal this host can return: a stable code, the mechanism that produced it, and what to do about it. Branch on `code`, never on the wording.' },
         { method: 'GET', path: '/api/v1/params', purpose: 'the constants edition this host prices with — every number in docs/ECONOMICS.md, plus the burn output and the limits.' },
+        { method: 'GET', path: '/api/v1/acts', purpose: 'the act log itself, JSON Lines, verbatim. Rule 1 says every number here is a pure function of this file, and this is where you get it: replay it yourself and you owe nobody any trust. Also answers at /api/v1/acts.jsonl and /api/v1/log.' },
         { method: 'GET', path: '/api/v1/status', purpose: 'epoch, log length, supply, pool, treasury, capacity pot, editions. The cheap poll.' },
         { method: 'GET', path: '/api/v1/feed?limit=N&before=MS&all=1', purpose: 'live posts newest first, each with its euro prices in both units and its dust flag. all=1 includes settled ones.' },
         { method: 'GET', path: '/api/v1/post/:pid', purpose: 'one post with its full economics, its lease, its shard count and its tombstone if it settled.' },
@@ -1415,6 +1416,45 @@ export async function createServer(options = {}) {
         genesisRate: world.epoch.oracle,
       });
     }
+    // ── the act log, raw ──────────────────────────────────────────────────
+    //
+    // THE ENDPOINT RULE 1 IS USELESS WITHOUT, and it was missing.
+    //
+    // "The act log is the only truth. Every balance, feed, earning and reserve
+    // is a pure function of it." A client that cannot GET the log cannot compute
+    // any of that and has to believe whatever /api/v1/feed tells it — which is
+    // precisely the trust the whole design exists to remove. app/app.mjs asks
+    // for this on every refresh and got a 404, so the published app fell through
+    // to its archive fallback and announced "No host answered" while the host
+    // was answering everything else.
+    //
+    // Nothing caught it: test/server.test.mjs drives the API and never replays,
+    // test/client.test.mjs replays and never crosses a socket, and the two names
+    // were only ever compared by a person reading both files.
+    //
+    // Three spellings because three readers already ask for three: the client
+    // wants /api/v1/acts, .github/workflows/archive.yml tries
+    // /api/v1/acts.jsonl and /api/v1/log. One handler answers all of them rather
+    // than one of them being right and two being 404 — a canonical name nobody
+    // uses is not a contract.
+    //
+    // Served as JSON Lines, verbatim, one canonical act per line, exactly as the
+    // writer appended them. Not re-encoded: a verifier checking a root needs the
+    // bytes that were hashed, not a faithful-looking re-serialisation of them.
+    if (path === '/api/v1/acts' || path === '/api/v1/acts.jsonl' || path === '/api/v1/log') {
+      const body = await log.raw();
+      res.writeHead(200, {
+        'content-type': 'application/x-ndjson; charset=utf-8',
+        'content-length': Buffer.byteLength(body),
+        // The log only ever grows, so a reader may cache what it has and ask for
+        // the rest; but it grows on every act, so it is never cached BLIND.
+        'cache-control': 'no-cache',
+        'x-ptp-acts': String(log.acts.length),
+        ...CORS,
+      });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+
     if (path === '/api/v1/status') return sendJson(res, 200, statusView());
     if (path === '/api/v1/burn') return sendJson(res, 200, { ok: true, ...burnFacts({ minConfirmations, explorers }) });
 

@@ -52,8 +52,10 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import * as rulebook from '../core/replay.mjs';
-import { EDITION, actError, MAX_COMMENT_CHARS } from '../core/replay.mjs';
+import { EDITION, actError, replay, MAX_COMMENT_CHARS } from '../core/replay.mjs';
 import { E } from '../core/errors.mjs';
+import { parseCanonical } from '../core/canonical.mjs';
+import { PARAMS } from '../core/params.mjs';
 import { editionsOf } from '../server/chain/block.mjs';
 import { createServer, addressOf, signAct } from '../server/index.mjs';
 import { BURN_SCRIPT_HEX } from '../server/burnwatch.mjs';
@@ -541,4 +543,75 @@ test('opening core/ to the browser does not open anything else', async (t) => {
     const res = await fetch(origin + path);
     assert.equal(res.status, 404, `${path} must not be served`);
   }
+});
+
+// ── 5. THE CLIENT'S CONTRACT IS THE HOST'S CONTRACT ────────────────────────
+//
+// Rule 1 says every number is a pure function of the act log. A client that
+// cannot GET the log cannot compute any of them and has to believe whatever the
+// host's derived views say — which is exactly the trust this design exists to
+// remove.
+//
+// The host did not serve the log at all. app/app.mjs asked for /api/v1/acts on
+// every refresh, got a 404, fell through to its archive fallback, and announced
+// "No host answered" on the published site while the host was answering
+// everything else. 347 tests were green: test/server.test.mjs drives the API and
+// never replays, test/client.test.mjs replays and never crosses a socket, and
+// the two path constants were only ever compared by a person reading both files.
+//
+// So this asserts the join. Every path the CLIENT asks for is read out of the
+// client's own source and demanded of a real host over HTTP.
+
+test('every path the client fetches, the host actually serves', async (t) => {
+  const { srv } = await writer(t);
+  const { url } = await srv.listen(0);
+  const origin = url.replace(/\/$/, '');
+
+  // Read the client's own constants rather than restating them here: a test that
+  // hardcodes the path cannot catch the two files drifting apart, which is the
+  // failure it exists to catch.
+  const src = readFileSync(new URL('../app/app.mjs', import.meta.url), 'utf8');
+  const paths = [...src.matchAll(/^const [A-Z_]+_PATH = '(\/api\/[^']+)';/gm)].map((m) => m[1]);
+  assert.ok(paths.length > 0, 'the client must declare the API paths it depends on as constants');
+  assert.ok(paths.includes('/api/v1/acts'), 'the client must fetch the act log');
+
+  for (const path of paths) {
+    // Some of these are read paths and some are the write door, so the route is
+    // considered present if EITHER verb reaches it. What is being asserted is
+    // that the host routes it at all — the failure this catches was a path the
+    // client asks for on every refresh and the host had never heard of.
+    const get = await fetch(origin + path);
+    const post = get.status === 404
+      ? await fetch(origin + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+      : null;
+    const routed = get.status !== 404 || (post && post.status !== 404);
+    assert.ok(routed, `the client uses ${path} and this host answers 404 to both GET and POST`);
+  }
+});
+
+test('the act log is served verbatim, and replaying it reproduces the host', async (t) => {
+  const { srv } = await writer(t);
+  const { url } = await srv.listen(0);
+  const origin = url.replace(/\/$/, '');
+
+  const res = await fetch(origin + '/api/v1/acts');
+  assert.ok(res.ok);
+  assert.match(res.headers.get('content-type') || '', /ndjson/);
+  const body = await res.text();
+  const lines = body.split('\n').filter(Boolean);
+  assert.ok(lines.length > 0, 'the staged world put acts in the log');
+  assert.equal(res.headers.get('x-ptp-acts'), String(lines.length));
+
+  // The bytes are the bytes the writer appended, not a re-serialisation of the
+  // parsed values. That is what lets a verifier check a root against what it was
+  // handed rather than against something that merely looks the same.
+  assert.equal(body, readFileSync(srv.log.path, 'utf8'));
+
+  // And because it is the log, replaying it gives the host's own world back —
+  // which is Rule 1 stated as an assertion a stranger could run.
+  const mine = replay(lines.map((l) => parseCanonical(l)), PARAMS);
+  assert.equal(mine.epoch.n, srv.world.epoch.n);
+  assert.equal(mine.supply.burned, srv.world.supply.burned);
+  assert.equal(Object.keys(mine.accounts).length, Object.keys(srv.world.accounts).length);
+  assert.equal(Object.keys(mine.posts).length, Object.keys(srv.world.posts).length);
 });
