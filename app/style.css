@@ -1,37 +1,59 @@
 /* ==========================================================================
    Peer two Peer — the whole design system, one file.
 
-   Two colours: ink and paper. Grey exists only for hairlines and for things
-   that cannot be pressed. Colour appears nowhere except inside the pictures,
-   because the interface is the frame and the photograph is the content.
+   The swamp. A near-black green ground with four slow blurred green blobs
+   drifting behind everything; raised cards at a 28px radius with a faint green
+   edge and a deep soft shadow; every button and every tab a full pill; text in
+   Outfit at 300 for body and 500 for labels; and every FIGURE in Instrument
+   Serif. That last one is the move the whole thing rests on — serif numerals
+   over sans text is what makes this look designed rather than themed. Muted
+   green carries eyebrows and meta, bright green carries anything live.
+
+   This replaces the black-and-white system that stood here before, and it
+   replaces ARCHITECTURE §11's palette with it. That is the owner's decision,
+   not drift: §11's other promises — one column of phone width at every screen
+   size, no external asset, no layout shift, a session meter that never leaves,
+   prefers-reduced-motion removing every animation — are all still kept below,
+   and the two colours are the only clause that changed.
+
+   Dark is the design and not a mode. There is no inversion in this file. A
+   device that prefers light gets the same swamp with its contrast raised a
+   step, because the signal "light" means a bright room, not a white app.
 
    The layout is a single column of phone width. The desktop does not reflow
-   it; the desktop only puts more paper around it and draws a hairline where
-   the column ends. One implementation, one shape, every screen.
+   it; the desktop only puts more swamp around it. One implementation, one
+   shape, every screen.
 
-   No !important anywhere. No external asset of any kind — no font, no icon
-   sprite, no CDN. Every glyph in this app is a real character or an inline
-   SVG authored in the markup.
+   No !important anywhere. No external request of any kind — the three
+   typefaces are files in this repository (see fonts/README.md), every icon is
+   an inline SVG authored in the markup, and there is no CDN, no font service
+   and no remote image. A stylesheet that fetched a font would hand a third
+   party the address of every reader on every load, which would make the app's
+   two loudest claims — it works offline, it ships nothing to anybody else's
+   server — false in one line.
 
    Sections
      1  Reset
-     2  Tokens
-     3  Dark inversion
-     4  Base typography
-     5  The column and the frame around it
-     6  Header, meter, wallet chip
-     7  Bottom bar
-     8  Feed cards
-     9  The picture frame
-    10  Action bar
-    11  Post detail and comments
-    12  Sheets (native <dialog>)
-    13  Forms
-    14  Buttons
-    15  Toasts
-    16  Skeletons, empty states, banners
-    17  Utilities
-    18  Reduced motion
+     2  The three typefaces, vendored
+     3  Tokens
+     4  Contrast, measured
+     5  The glow
+     6  Base typography and the figures
+     7  The column
+     8  Header, meter, wallet chip
+     9  Bottom bar
+    10  Feed cards
+    11  The picture frame
+    12  Action bar
+    13  Post detail and comments
+    14  Sheets (native <dialog>)
+    15  Forms
+    16  Buttons
+    17  Toasts
+    18  Skeletons, empty states, banners
+    19  Utilities
+    20  A brighter room
+    21  Reduced motion
    ========================================================================== */
 
 
@@ -65,59 +87,163 @@ table { border-collapse: collapse; }
 
 
 /* --------------------------------------------------------------------------
-   2  TOKENS
-   The two colours are custom properties so the dark inversion below can be a
-   single rule. Everything else — space, type, the hairline, the one motion
-   duration — is a token too, so that a change is a change everywhere.
+   2  THE THREE TYPEFACES, VENDORED
+   Every src below is a relative path to a file that ships in this repository.
+   There is no @import, no preconnect and no absolute URL in this stylesheet,
+   and nothing may add one.
 
-   --motion is the only timing value in the file. Every transition and every
-   animation reads it. Setting it to 0s (see section 18) removes motion from
-   the app without a single !important and without touching any component.
+   Outfit arrives as a single variable file covering 300 to 600, so the four
+   weights the design uses are one 32 KB download rather than four. Declaring
+   the range on the @font-face is what lets the browser instance any weight in
+   it from that one file; without the range it would synthesise the others.
+
+   font-display: swap on all three. The fallback stack after each family is a
+   real stack and not a decoration: on the first paint of a cold load the app
+   is rendered in it, and a reader on a slow link reads the whole interface in
+   it. Georgia is chosen after Instrument Serif because the figures have to
+   stay serif figures — falling back to a sans would erase the one thing that
+   distinguishes a number from a word here.
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/Outfit-var.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Michroma";
+  src: url("fonts/Michroma-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("fonts/InstrumentSerif-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+/* --------------------------------------------------------------------------
+   3  TOKENS
+   Colour, space, type, shape and the one motion duration. A change here is a
+   change everywhere, which is the only reason a component below ever names a
+   literal.
+
+   --motion is the only timing value in the file that components read. Every
+   transition and every keyed animation but the glow reads it, so setting it
+   to 0s (section 21) removes motion from the app without a single !important
+   and without touching a component. The glow's four blobs run on their own
+   long durations and are therefore switched off by name in the same block —
+   the one animation in the file that has to be named twice.
    -------------------------------------------------------------------------- */
 
 :root {
-  color-scheme: light dark;
+  /* Dark at every setting. This is the property that makes the platform draw
+     its own furniture — scrollbars, the select popup, the spin buttons on a
+     number input, the file-picker button — in dark. It is not paired with
+     "light" here, because there is no light variant of this app to switch to. */
+  color-scheme: dark;
 
-  /* the two colours */
-  --ink:    #000;
-  --paper:  #fff;
+  /* ── the ground and the surfaces on it ────────────────────────────────── */
+  --page:      #050B07;              /* the ground everything sits on        */
+  --page-lift: #0A1710;              /* an opaque ground, for a modal surface */
+  --surface:   rgb(14 32 21 / .72);  /* a raised card                        */
+  --surface-3: rgb(14 32 21 / .82);  /* the bars: header and tab bar         */
+  --inset:     rgb(5 11 7 / .6);     /* a panel sunk into a card             */
+  --raise:     rgb(9 22 14 / .94);   /* a toast: nearly opaque, on purpose   */
 
-  /* grey, in three roles and no others.
+  /* A reply: sunk back rather than raised, so a thread reads as a card with
+     quieter things under it. The design draws this at .6. Measured, .6 puts
+     --mute at 4.32:1 where the glow is brightest — under the floor, and this
+     surface carries a handle, an address and a timestamp all set in --mute.
+     .66 is the dimmest it can be and still clear it, at 4.66:1. */
+  --surface-2: rgb(14 32 21 / .66);
 
-     --hair is decoration and lands at 1.43:1 on paper (1.66:1 on ink). That is
-     deliberate and it is why nothing drawn in --hair may be the only carrier of
-     information: every rule, frame and separator it draws is duplicated by
-     position, spacing or a word. A hairline you cannot see costs you nothing.
+  /* ── edges ────────────────────────────────────────────────────────────────
+     --edge draws the border of a card, a panel and a bar. It lands at 1.29:1
+     against the ground, so it is DECORATION and nothing drawn in it may be the
+     only carrier of information: every card, panel and bar it outlines is also
+     separated by its own background, its shadow and the space around it. An
+     edge you cannot quite see costs you nothing when the surface it traces is
+     visible without it.
 
-     --mute is the opposite: it is read. 5.33:1 on paper, 7.56:1 on ink, both
-     above the 4.5:1 body-text floor. It is also what draws the OUTLINE of a
-     disabled control — see section 14. Those outlines used to be --hair, which
-     put the edge of a control at 1.43:1, and the edge of a control is how you
-     find out the control is there at all. */
-  --hair:   #d8d8d8;   /* rules, borders, frames — decoration, never text  */
-  --mute:   #6b6b6b;   /* disabled + secondary text and edges — 5.33:1     */
-  --fill:   #f0f0f0;   /* skeleton bodies: the absence of content         */
-  --scrim:  rgb(0 0 0 / .55);  /* behind a sheet; always black, both themes */
+     --edge-field is the opposite, and it is the one number in this file that
+     departs from the supplied design. The design draws every edge at the same
+     faint alpha. That is right for a card, and right for a pill whose own
+     label identifies it; it is wrong for an empty text input, because an input
+     has no label INSIDE it and its border is the entire evidence that there is
+     something there to type into. So the fields — and only the fields — are
+     drawn at an alpha that clears WCAG 1.4.11's 3:1 floor for the boundary of
+     a user interface component. Measured ratios are in section 4. */
+  --edge:       rgb(123 224 160 / .14);
+  --edge-2:     rgb(123 224 160 / .16);
+  --edge-lit:   rgb(76 255 143 / .28);
+  --edge-field: rgb(76 255 143 / .44);
+  --divider:    rgb(123 224 160 / .10);
 
-  /* geometry */
-  --col:       480px;  /* the column. the phone is the format, everywhere. */
-  --hairline:  1px;
-  --radius:    0;      /* hard edges. this is print, not plastic.          */
-  --tap:       44px;   /* minimum interactive target, both axes            */
-  --header-h:  52px;
-  --bar-h:     56px;
+  /* ── ink ──────────────────────────────────────────────────────────────── */
+  --text:   #DCF3E2;   /* primary body                                       */
+  --text-2: #CFE9D6;   /* a reply, a secondary line                          */
+  --head:   #E9FBEE;   /* the wordmark and the headings                      */
+  --mute:   #7FAE8D;   /* labels, meta, eyebrows, disabled — see section 4   */
+
+  /* ── the live signal ──────────────────────────────────────────────────── */
+  --accent:   #4CFF8F;   /* anything live: figures that move, active states  */
+  --accent-2: #7BE0A0;   /* pill text and icons                              */
+  --accent-3: #BFF7D0;   /* text on a filled pill                            */
+  --warn:     #EE9A72;   /* the one warm colour: refusals and caution        */
+
+  /* The design's deep mark fill, #0F3520, is deliberately not a token here.
+     It draws a dark silhouette lit from behind, which works for a 34×49 mark
+     with interior detail; at 1.47:1 on the ground it is legible as a shape and
+     not as a line. This app's mark is 20px of two rectangles, so it is drawn
+     in --accent and carries the same halo instead. */
+
+  /* ── pills ────────────────────────────────────────────────────────────── */
+  --pill-bg:          rgb(76 255 143 / .12);
+  --pill-edge:        rgb(76 255 143 / .26);
+  --pill-strong-bg:   rgb(76 255 143 / .14);
+  --pill-strong-edge: rgb(76 255 143 / .28);
+
+  /* ── depth ────────────────────────────────────────────────────────────── */
+  --shadow:     0 18px 40px rgb(0 0 0 / .45);
+  --shadow-lit: 0 0 30px rgb(76 255 143 / .35);
+  --shadow-tab: 0 0 20px rgb(76 255 143 / .25);
+  --scrim:      rgb(2 6 4 / .72);
+
+  /* how much of the glow reaches the page. One number, so a brighter room can
+     turn the wash down without touching four blobs. */
+  --glow-strength: 1;
+
+  /* ── geometry ─────────────────────────────────────────────────────────── */
+  --col:          480px;  /* the column. the phone is the format, everywhere. */
+  --hairline:     1px;
+  --radius:       28px;   /* a card                                          */
+  --radius-2:     20px;   /* a panel sunk into a card                        */
+  --radius-3:     22px;   /* a small card: a comment, a toast                */
+  --radius-pill:  999px;  /* every button and every tab                      */
+  --tap:          44px;   /* minimum interactive target, both axes           */
+  --header-h:     56px;
+  --bar-h:        68px;   /* the pill bar plus the space it floats in        */
 
   /* the focus ring, in three numbers rather than in four literals scattered
      across the file. --ring-reach is how far outside an element's border box
      the ring paints, and anything that clips its own children has to know that
-     figure: see .view-head__title in section 11, which pushes its clip box out
+     figure: see .view-head__title in section 13, which pushes its clip box out
      by exactly this much so the ring on the link inside it survives. Deriving
      it means the clip and the ring cannot drift apart. */
   --ring:       2px;                                  /* outline width      */
   --ring-gap:   2px;                                  /* outline offset     */
   --ring-reach: calc(var(--ring) + var(--ring-gap));  /* total, 4px         */
 
-  /* spacing scale */
+  /* ── spacing scale ────────────────────────────────────────────────────── */
   --s-1: .25rem;
   --s-2: .5rem;
   --s-3: .75rem;
@@ -126,115 +252,342 @@ table { border-collapse: collapse; }
   --s-6: 2rem;
   --s-7: 3rem;
 
-  /* type scale */
-  --f-1: .6875rem;   /* labels, counters                       */
-  --f-2: .75rem;     /* meta lines                             */
-  --f-3: .875rem;    /* secondary body                         */
-  --f-4: 1rem;       /* body                                   */
-  --f-5: 1.125rem;   /* card price, sheet titles               */
-  --f-6: 1.375rem;   /* view titles                            */
-  --f-7: 1.75rem;    /* balances                               */
+  /* ── type scale ───────────────────────────────────────────────────────── */
+  --f-1: .6875rem;     /* 11px   — eyebrows and labels, tracked wide        */
+  --f-2: .78125rem;    /* 12.5px — meta lines                              */
+  --f-3: .84375rem;    /* 13.5px — secondary body                          */
+  --f-4: 1.03125rem;   /* 16.5px — body. the design's own body size.       */
+  --f-5: 1.125rem;     /* 18px   — a lead paragraph, a sheet title         */
+  --f-6: 1.375rem;     /* 22px   — a heading                               */
+  --f-7: 1.875rem;     /* 30px   — a serif display line                    */
 
-  /* type stacks: system only, so nothing is fetched and nothing is tracked */
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* the figures, which have their own scale because they are set in a
+     different family and a serif at the same nominal size reads smaller */
+  --fig-1: 1.0625rem;  /* 17px — a value in a row                          */
+  --fig-2: 1.375rem;   /* 22px — a standing figure                        */
+  --fig-3: 1.625rem;   /* 26px — the one figure a screen is about         */
 
-  /* motion */
-  --motion: 140ms;
+  /* ── type stacks ──────────────────────────────────────────────────────── */
+  --sans:    "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Michroma", "Outfit", system-ui, -apple-system, sans-serif;
+  --serif:   "Instrument Serif", Georgia, "Times New Roman", serif;
+  --mono:    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ── motion ───────────────────────────────────────────────────────────── */
+  --motion: 160ms;
   --ease:   cubic-bezier(.2, 0, 0, 1);
 }
 
 
 /* --------------------------------------------------------------------------
-   3  DARK INVERSION
-   The same two colours, swapped. Nothing else in the file knows about theme:
-   every component paints with var(--ink) on var(--paper) and is correct in
-   both. The grey tokens move with the background so a hairline stays a
-   hairline and disabled text keeps its contrast ratio.
+   4  CONTRAST, MEASURED
 
-   prefers-color-scheme is the signal; [data-theme] on <html> overrides it in
-   both directions, so an in-app switch is possible without new components.
+   Every ratio below was computed, not estimated: sRGB channels linearised with
+   the WCAG transfer function, relative luminance as .2126R + .7152G + .0722B,
+   ratio as (L1 + .05) / (L2 + .05). Translucent surfaces were composited first
+   — a token that says rgb(14 32 21 / .72) is not a colour anybody sees until
+   it is laid over what is behind it, so what is measured is the composite.
+
+   Three grounds matter, and the third is the one that decides the palette:
+
+     page                #050B07
+     card, unlit         #0B1A11   surface .72 over the page
+     card, LIT           #153A23   the same card sitting over the brightest
+                                   point the glow can reach: blob 0's gradient
+                                   centre, rgb(76 255 143 / .55), at the top of
+                                   its pulse. Screen-blended and composited the
+                                   way the browser does it.
+
+   A translucent surface gets BRIGHTER as it gets dimmer, because more of the
+   glow comes through it, so the reply surface was chosen by measurement rather
+   than by eye. --mute on a reply over the brightest point of the glow:
+
+     surface .60  #184529   4.32:1   under the floor — the design's own value
+     surface .66  #174026   4.66:1   what --surface-2 is set to
+     surface .72  #153A23   5.01:1   a full card
+
+   The glow is the reason the third column exists. A wash that drifts under a
+   scrolling column of text raises the background luminance under that text,
+   and a palette measured only against the bare ground is measured against a
+   pixel that is often not there.
+
+                       page      card unlit   card LIT
+     --text   #DCF3E2  16.99:1   15.33:1      10.80:1
+     --text-2 #CFE9D6  15.40:1   13.89:1       9.79:1
+     --head   #E9FBEE  18.44:1   16.64:1      11.72:1
+     --mute   #7FAE8D   7.89:1    7.12:1       5.01:1
+     --accent #4CFF8F  15.14:1   13.66:1       9.62:1
+     accent-2 #7BE0A0  12.31:1   11.10:1       7.82:1
+     accent-3 #BFF7D0  16.48:1   14.87:1      10.48:1
+     --warn   #EE9A72   8.99:1    8.11:1       5.71:1
+
+   Two tokens moved off the supplied palette to get there, and both are noted
+   where they are declared:
+
+     mute   #6E9B7E → #7FAE8D. The design's muted green measures 6.29:1 on the
+            page and 5.68:1 on an unlit card — fine — but 4.00:1 on a lit one,
+            and it carries every eyebrow, every meta line, every hint and every
+            disabled label in the app. #7FAE8D is the same sage a step lighter
+            and clears 4.5:1 on all three grounds, with 5.01:1 in the worst
+            case. The darkest point on that ramp that still passes is #76A687
+            at 4.55:1; #7FAE8D was taken for the margin.
+     warn   #E0805A → #EE9A72. 4.45:1 on a lit card, which is a miss by four
+            hundredths on the colour that prints refusals. 5.71:1 now.
+
+   Non-text, against WCAG 1.4.11's 3:1 floor:
+
+     --edge-field  #4CFF8F at .44   3.56:1 on the page, 3.17:1 on a lit card.
+                   The boundary of an input is the only thing that says an
+                   input is there, so it holds the floor.
+     --edge        #7BE0A0 at .14   1.29:1. Decoration. Every surface it traces
+                   is also separated by its own fill, its shadow and its space,
+                   exactly as the old --hair was, and nothing is drawn in it
+                   alone.
+     focus ring    #4CFF8F on the page 15.14:1, and on the brightest lit card
+                   9.62:1. Where the ring surrounds a filled accent control the
+                   dark band inside it carries the separation instead — see
+                   section 6.
+     filled pill   #050B07 on #4CFF8F, 15.14:1.
+
+   Colour is never the only carrier. A settled lease is struck through as well
+   as recoloured; the current tab is filled and set at a heavier weight as well
+   as brightened; a liked post fills its heart as well as changing colour; a
+   refusal prints a code and a sentence, and the warm edge only agrees with
+   them. That rule survived the palette change intact.
    -------------------------------------------------------------------------- */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink:   #fff;
-    --paper: #000;
-    --hair:  #333;
-    --mute:  #9b9b9b;
-    --fill:  #1a1a1a;
-    --scrim: rgb(0 0 0 / .72);
-  }
+
+/* --------------------------------------------------------------------------
+   5  THE GLOW
+   Four radial blobs, slowly changing shape and brightness behind everything.
+   They are the whole atmosphere of this design and they are also the reason
+   section 4 has a third column.
+
+   MARKUP CONTRACT — index.html ships exactly this, as the first child of body:
+       <div class="glow" aria-hidden="true"><span></span> ×4</div>
+   Four spans, empty, in the order the four rules below expect. It is decoration
+   with no meaning, so it is hidden from assistive technology at the container
+   and never given a role.
+
+   Why the layer is fixed. It is pinned to the viewport rather than to the
+   document, so a long feed scrolls THROUGH the light instead of dragging it
+   along, and the browser composites four static layers instead of repainting
+   them down a 4000px page. z-index 0 puts it above the page background and
+   below everything that is positioned; .app-main is given a positive z-index
+   in section 7 so the feed — which is not positioned — is above it too.
+
+   Why mix-blend-mode: screen. Where two blobs overlap they fuse into a
+   brighter green rather than stacking as two flat washes. position: fixed
+   makes .glow a stacking context, so the blending is contained to the layer:
+   the blobs blend with each other and the finished layer is composited over
+   the page normally. On a ground this close to black that composite is within
+   a rounding error of what screening against the page directly would give
+   (#287D48 against #267D47 at the brightest point), so nothing is lost by the
+   containment and the fusion is kept.
+
+   Why --gutter. The blob offsets are the design's own, measured on a 402px
+   phone where the screen and the column are the same thing. On a desktop the
+   column is 480px in the middle of a wide window, and offsets taken from the
+   viewport edge would light the far corners of the room and leave the app
+   dark. --gutter is the distance from the viewport edge to the column edge —
+   zero on a phone, half the leftover on a desk — so every blob keeps its
+   position RELATIVE TO THE COLUMN at every width, and a phone gets exactly the
+   design's numbers.
+   -------------------------------------------------------------------------- */
+
+.glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;          /* clipped at the viewport, never at the column */
+  pointer-events: none;
+  opacity: var(--glow-strength);
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --ink:   #fff;
-  --paper: #000;
-  --hair:  #333;
-  --mute:  #9b9b9b;
-  --fill:  #1a1a1a;
-  --scrim: rgb(0 0 0 / .72);
+.glow span {
+  --gutter: max(0px, (100% - var(--col)) / 2);
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  /* The static state, and the state prefers-reduced-motion falls back to: the
+     midpoint of the pulse. glowpulse overrides both while it is running, so
+     switching the animation off leaves a still blob rather than a hard-edged
+     disc at full strength. */
+  filter: blur(42px);
+  opacity: .7;
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --ink:   #000;
-  --paper: #fff;
-  --hair:  #d8d8d8;
-  --mute:  #6b6b6b;
-  --fill:  #f0f0f0;
-  --scrim: rgb(0 0 0 / .55);
+.glow span:nth-child(1) {
+  top: -110px;
+  left: calc(var(--gutter) - 80px);
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle at 40% 40%, rgb(76 255 143 / .55), rgb(76 255 143 / 0) 70%);
+  animation: wob1 18s ease-in-out infinite, glowpulse 9s ease-in-out infinite;
+}
+
+.glow span:nth-child(2) {
+  top: 210px;
+  right: calc(var(--gutter) - 130px);
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle at 50% 50%, rgb(47 168 106 / .62), rgb(47 168 106 / 0) 72%);
+  animation: wob2 23s ease-in-out infinite, glowpulse 11s ease-in-out infinite;
+}
+
+.glow span:nth-child(3) {
+  bottom: -90px;
+  left: calc(var(--gutter) + 10px);
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle at 50% 50%, rgb(123 224 160 / .38), rgb(123 224 160 / 0) 72%);
+  animation: wob1 27s ease-in-out infinite, glowpulse 13s ease-in-out infinite;
+}
+
+.glow span:nth-child(4) {
+  top: 380px;
+  left: calc(var(--gutter) - 70px);
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle at 50% 50%, rgb(20 90 55 / .85), rgb(20 90 55 / 0) 72%);
+  animation: wob2 31s ease-in-out infinite, glowpulse 15s ease-in-out infinite;
+}
+
+/* The two wobbles deform the blob and drift it a few pixels; the pulse changes
+   how bright and how soft it is. They run on different periods — 18/23/27/31
+   against 9/11/13/15 — so the four never come back into phase and the wash
+   never looks like a loop. */
+@keyframes wob1 {
+  0%, 100% { border-radius: 58% 42% 46% 54% / 48% 56% 44% 52%; transform: translate3d(0, 0, 0) scale(1); }
+  33%      { border-radius: 42% 58% 62% 38% / 56% 42% 58% 44%; transform: translate3d(14px, -18px, 0) scale(1.08); }
+  66%      { border-radius: 52% 48% 38% 62% / 40% 60% 40% 60%; transform: translate3d(-16px, 12px, 0) scale(.94); }
+}
+
+@keyframes wob2 {
+  0%, 100% { border-radius: 46% 54% 60% 40% / 52% 44% 56% 48%; transform: translate3d(0, 0, 0) scale(1.02); }
+  50%      { border-radius: 60% 40% 44% 56% / 44% 58% 42% 56%; transform: translate3d(-22px, -14px, 0) scale(.92); }
+}
+
+@keyframes glowpulse {
+  0%, 100% { opacity: .55; filter: blur(38px); }
+  50%      { opacity: .85; filter: blur(46px); }
 }
 
 
 /* --------------------------------------------------------------------------
-   4  BASE TYPOGRAPHY
-   Money is set in tabular figures everywhere it appears, so a meter that ticks
-   up does not shuffle the characters beside it. Addresses and content
-   identifiers are set in the system monospace: they are strings to be compared
-   by eye, not words to be read.
+   6  BASE TYPOGRAPHY AND THE FIGURES
+   Outfit at 300 for body and 500 for anything that labels something. Michroma
+   for the wordmark and nothing else — it is a display face, and a display face
+   used twice stops being a wordmark.
+
+   And every FIGURE in Instrument Serif. That is the signature of this system,
+   so it is worth being exact about how it is applied: app.mjs writes numbers
+   into nodes that already exist in index.html, and it is not this file's place
+   to require a new class on a node the app has to remember to add. The hook
+   contract already says money nodes carry "money" and counters carry "num", so
+   those two classes do most of the work, .session-total covers the six mirrors
+   of the meter, and the handful of figures that carry neither class are named
+   by id. .figure is the utility for anything added later.
+
+   Addresses and content identifiers stay in the system monospace: they are
+   strings to be compared by eye, not words to be read, and not figures either.
    -------------------------------------------------------------------------- */
 
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--page);
+  color: var(--text);
   font-family: var(--sans);
   font-size: var(--f-4);
+  font-weight: 300;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   /* the platform owns the scroll. we never intercept wheel or touch. */
   overflow-wrap: break-word;
+  /* the ground has to reach the bottom of a short page, or the glow shows
+     through to white on an overscroll */
+  min-height: 100dvh;
 }
 
-h1, h2, h3 { font-weight: 650; line-height: 1.25; letter-spacing: -.01em; }
-h1 { font-size: var(--f-6); }
-h2 { font-size: var(--f-5); }
-h3 { font-size: var(--f-4); }
+h1, h2, h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  color: var(--head);
+}
+h1 { font-size: var(--f-7); }
+h2 { font-size: var(--f-6); }
+h3 { font-size: var(--f-6); }
 
-a { color: inherit; text-decoration-thickness: from-font; text-underline-offset: .15em; }
+p { text-wrap: pretty; }
+
+a { color: var(--accent-2); text-decoration-thickness: from-font; text-underline-offset: .15em; }
 
 small, .meta { font-size: var(--f-2); color: var(--mute); }
 
-/* `time` is deliberately not in this list: the app ships no <time> element and
-   may not grow one. An expiry and a comment timestamp have no value while the
-   shell is loading, and a <time> has no conformant way to say so — the note at
-   #post-expiry in index.html carries the whole argument. Those two get the same
-   figures from their own rules in sections 8 and 11. */
-.num, output, .money {
+/* `time` is deliberately not in any list here: the app ships no <time> element
+   and may not grow one. An expiry and a comment timestamp have no value while
+   the shell is loading, and a <time> has no conformant way to say so — the note
+   at #post-expiry in index.html carries the whole argument. Those nodes get
+   their figures from their own rules in sections 10 and 13. */
+
+/* THE FIGURES. Instrument Serif has one weight, 400, and no bold: a figure is
+   never emphasised by weight here, only by size and by colour.
+
+   letter-spacing is reset to normal because two of these nodes are inside a
+   tracked uppercase label — #spend-total lives in a <summary class="label"> —
+   and a serif figure stretched by .22em reads as a mistake.
+
+   font-variant-numeric asks for tabular figures. If the vendored subset
+   carries no tabular table the request is inert and the figures are
+   proportional, which is why nothing in the layout is allowed to depend on a
+   figure's exact width: see the note on .meter in section 8, which pins its
+   label rather than centring the pair. */
+.figure,
+.money,
+.num,
+output,
+.session-total,
+.card__price, .card__views, .card__like-count, .card__comment-count,
+.card__earned, .card__paid,
+#meter-value,
+#wallet-ptp, #wallet-sat, #wallet-cap, #wallet-eur,
+#post-views, #post-unique, #post-likes,
+#post-gross, #post-credit, #post-paid,
+.spend-row__amount,
+#cap-pot, #cap-proven, #cap-pledged, #cap-claimable,
+#buy-quote, #buy-rate, #buy-impact, #buy-fee,
+#composer-total, #composer-fee, #composer-rent,
+#composer-wh, #composer-bytes, #composer-mb,
+.comment__at {
+  font-family: var(--serif);
+  font-weight: 400;
+  letter-spacing: normal;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
+
+/* .card__paid is a short sentence with a count in it — "you have paid n views"
+   — rather than a bare figure, so it takes the serif at the secondary body
+   size instead of the meta size, where a serif at 12.5px stops being legible
+   on a phone. */
+.card__paid { font-size: var(--f-3); color: var(--mute); }
 
 .mono, .addr, .cid {
   font-family: var(--mono);
   font-size: .9em;
   letter-spacing: -.01em;
+  color: var(--mute);
 }
 
+/* the eyebrow: the one piece of typography this design repeats everywhere */
 .label {
+  font-family: var(--sans);
   font-size: var(--f-1);
-  letter-spacing: .12em;
+  font-weight: 400;
+  letter-spacing: .22em;
   text-transform: uppercase;
   color: var(--mute);
 }
@@ -242,54 +595,58 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 /* Focus is never removed, only replaced — and the replacement is two rings,
    not one.
 
-   A single ink ring is invisible the moment it is drawn on ink, and this app
-   has ink surfaces on purpose: the offline banner, every toast, a primary
-   button, the selected half of a segmented control. Under the dark inversion
-   --ink is white and those same surfaces are white, so the failure simply
-   changes which theme it happens in. It never goes away.
+   A single bright ring disappears the moment it is drawn on a bright surface,
+   and this design has bright surfaces on purpose: a primary button filled with
+   --accent, the selected half of a segmented control, the current tab. A
+   single dark ring disappears on the ground, which is everything else.
 
-   So the ring is paper immediately around the element and ink immediately
-   outside that. Whatever the element is sitting on is one of those two
-   colours, so one of the two rings is always at 21:1 against it and the whole
-   ring is always at 21:1 against the other half of itself. Both rings invert
-   together, so this holds in light and in dark without a second rule.
+   So the ring is the ground colour immediately around the element and --accent
+   immediately outside that. Whatever the element sits on is either the dark
+   ground — where the accent half is at 15.14:1 — or a bright accent fill —
+   where the dark half separates the ring from the fill. One of the two halves
+   is always carrying it, and the two are always at maximum contrast with each
+   other, so there is no surface in this app where the ring is not a ring.
 
-   The box-shadow fills the gap the outline is offset by; nothing in this
-   stylesheet uses box-shadow for anything else, so there is nothing to
-   collide with. Both halves are drawn from the ring tokens, so the ring's
-   reach outside the element — --ring-reach — is a number the rest of the file
-   can be built against rather than a coincidence. */
+   The box-shadow fills the gap the outline is offset by. Nothing else in this
+   file uses box-shadow on a focusable element's own box except the sheets and
+   the cards, neither of which is focusable, so there is nothing to collide
+   with. Both halves are drawn from the ring tokens, so the ring's reach
+   outside the element — --ring-reach — is a number the rest of the file can be
+   built against rather than a coincidence. */
 :focus-visible {
-  outline: var(--ring) solid var(--ink);
+  outline: var(--ring) solid var(--accent);
   outline-offset: var(--ring-gap);
-  box-shadow: 0 0 0 var(--ring-gap) var(--paper);
+  box-shadow: 0 0 0 var(--ring-gap) var(--page);
 }
 :focus:not(:focus-visible) { outline: none; }
 
-::selection { background: var(--ink); color: var(--paper); }
+::selection { background: var(--accent); color: var(--page); }
 
 
 /* --------------------------------------------------------------------------
-   5  THE COLUMN AND THE FRAME AROUND IT
+   7  THE COLUMN
    .column is the phone. It never changes width beyond 480px, on any screen.
-   The only thing a breakpoint does is colour in the vertical hairlines that
-   mark where the column stops — the frame around the page, never the page.
+
+   It is layout and nothing else now. The old system drew a vertical hairline
+   down each side of it on wide screens, because a white column on a white
+   desktop needs an edge to be a column at all. This one does not: the cards
+   are raised, shadowed objects on a dark ground and the glow is centred on the
+   column, so the column's edge is already where the light stops.
    -------------------------------------------------------------------------- */
 
 .column {
   width: 100%;
   max-width: var(--col);
   margin-inline: auto;
-  /* the hairline exists at every width; it is only visible on wide screens,
-     so the column's inner geometry is identical on a phone and on a desk. */
-  border-inline: var(--hairline) solid transparent;
 }
 
-@media (min-width: 560px) {
-  .column { border-inline-color: var(--hair); }
-}
-
+/* z-index 1 lifts the whole page above the glow layer, which sits at 0. The
+   feed and its cards are not positioned elements, so without this they would
+   paint underneath a positioned sibling — the glow — and the wash would cover
+   the words instead of sitting behind them. */
 .app-main {
+  position: relative;
+  z-index: 1;
   /* room for the fixed bottom bar plus whatever the device eats below it */
   padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom) + var(--s-4));
   min-height: 100dvh;
@@ -300,19 +657,27 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 
 
 /* --------------------------------------------------------------------------
-   6  HEADER, METER, WALLET CHIP
+   8  HEADER, METER, WALLET CHIP
    The meter is not a feature, it is a safeguard. A network that bills per
    impression and hides the running total is a trap, so the euro figure is
    pinned to the top of the screen and is never scrolled away. It is a button:
    pressing it opens the wallet, where the same number is broken down.
+
+   The bar is translucent over a blur rather than opaque, so the glow keeps
+   moving behind it and the app reads as one surface. The blur is affordable
+   here and on the tab bar because both are small fixed rectangles that the
+   compositor rasterises once; it is deliberately NOT used on the cards, which
+   are numerous, scrolling, and would have to be re-rasterised every frame.
    -------------------------------------------------------------------------- */
 
 .app-header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--paper);
-  border-bottom: var(--hairline) solid var(--hair);
+  background: var(--surface-3);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-bottom: var(--hairline) solid var(--edge);
   padding-top: env(safe-area-inset-top);
 }
 
@@ -326,68 +691,128 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   align-items: center;
   gap: var(--s-2);
   min-height: var(--header-h);
-  padding-inline: var(--s-3);
+  padding: var(--s-2) var(--s-3);
 }
 
+/* The mark and the wordmark. The mark takes the accent and a soft halo; the
+   wordmark is the one place Michroma appears. currentColor on the svg is what
+   lets the mark be recoloured from here without touching the markup, and the
+   drop-shadow is on the svg alone so the halo traces the glyph rather than a
+   rectangle. */
 .brand {
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
   gap: var(--s-2);
-  font-weight: 700;
+  font-family: var(--display);
+  font-weight: 400;
   font-size: var(--f-3);
   letter-spacing: .04em;
+  color: var(--head);
   text-decoration: none;
 }
-.brand svg { width: 18px; height: 18px; }
+.brand svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 14px rgb(76 255 143 / .35));
+}
 
-/* the meter itself: a label nobody has to learn and a figure that only grows */
+/* The meter: an eyebrow nobody has to learn and a figure that only grows.
+
+   justify-content is start rather than center, and that is a correctness
+   choice. The figure is a serif numeral; if the vendored subset carries no
+   tabular table, "0.90 €" and "1.10 €" are not the same width, and a centred
+   pair would slide the word "session" sideways every time the meter ticked.
+   Pinned to the start, only the number's own tail moves. */
 .meter {
   display: inline-flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--s-2);
   min-height: var(--tap);
-  padding-inline: var(--s-2);
+  padding-inline: var(--s-3);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  border: var(--hairline) solid var(--pill-edge);
   cursor: pointer;
-  border: var(--hairline) solid transparent;
+  transition: background var(--motion) linear;
 }
-.meter:hover { border-color: var(--hair); }
-.meter__label { font-size: var(--f-1); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
-.meter__value { font-size: var(--f-4); font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* a spend that just changed gets one blink of inverted ink, then settles */
+.meter:hover { background: var(--pill-strong-bg); }
+
+.meter__label {
+  font-size: var(--f-1);
+  font-weight: 400;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.meter__value {
+  font-size: var(--fig-2);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* A spend that just changed gets one blink of the accent behind it and then
+   settles. The class is added and removed by app.mjs; a CSS animation does not
+   restart while its class is still on the element, which is why the hook
+   contract says to remove it before adding it again. */
 .meter__value.is-ticked { animation: tick var(--motion) var(--ease) 2 alternate; }
 
 @keyframes tick {
-  from { background: transparent; color: var(--ink); }
-  to   { background: var(--ink);  color: var(--paper); }
+  from { text-shadow: none; }
+  to   { text-shadow: 0 0 18px rgb(76 255 143 / .8); }
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-1);
   min-height: var(--tap);
-  padding: 0 var(--s-2);
-  border: var(--hairline) solid var(--ink);
+  padding: 0 var(--s-3);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  border: var(--hairline) solid var(--pill-edge);
+  color: var(--accent-2);
   font-size: var(--f-2);
+  font-weight: 500;
   cursor: pointer;
   max-width: 12ch;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.chip[data-state="anon"] { border-color: var(--mute); color: var(--mute); }
+/* Not connected: the pill empties out and goes muted. The word inside it
+   changes too — "connect" against a handle — so the state is not in the
+   colour alone. */
+.chip[data-state="anon"] {
+  background: transparent;
+  border-color: var(--edge);
+  color: var(--mute);
+}
 
-/* connection state: a word, not a coloured dot. red and green are colours. */
-.netstate { font-size: var(--f-1); text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
-.netstate[data-state="offline"] { color: var(--ink); text-decoration: underline; }
+/* Connection state as a word, not a coloured dot. Kept from the old system
+   because the argument still holds: a dot that means "offline" has to be
+   learned, and a word does not. */
+.netstate {
+  font-size: var(--f-1);
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  color: var(--mute);
+}
+.netstate[data-state="offline"] { color: var(--warn); text-decoration: underline; }
 
 
 /* --------------------------------------------------------------------------
-   7  BOTTOM BAR
+   9  BOTTOM BAR
    Three destinations, thumb height, safe-area aware. Fixed rather than sticky
    so the feed scrolls under it instead of pushing it around.
+
+   The bar is a pill containing pills: a floating capsule with 6px of padding,
+   and the current destination is a filled capsule inside it. --bar-h is the
+   whole thing including the space it floats in, because .app-main's bottom
+   padding and the toasts' offset are both derived from it.
    -------------------------------------------------------------------------- */
 
 .app-bar {
@@ -395,16 +820,23 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   inset-inline: 0;
   bottom: 0;
   z-index: 20;
-  background: var(--paper);
-  border-top: var(--hairline) solid var(--hair);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding: 0 var(--s-3) calc(var(--s-3) + env(safe-area-inset-bottom));
+  pointer-events: none;   /* the gap beside the pill is not a target */
 }
 
 .app-bar__row {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  min-height: var(--bar-h);
+  gap: var(--s-1);
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: var(--hairline) solid var(--edge-2);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
 }
 
 .app-bar button {
@@ -412,77 +844,107 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   min-height: var(--tap);
+  border-radius: var(--radius-pill);
   font-size: var(--f-1);
-  letter-spacing: .08em;
+  font-weight: 400;
+  letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--mute);
   cursor: pointer;
+  transition: background var(--motion) linear, color var(--motion) linear;
 }
 .app-bar button svg { width: 20px; height: 20px; }
-.app-bar button[aria-current="page"] { color: var(--ink); font-weight: 650; }
+.app-bar button:hover { color: var(--accent-2); }
+
+/* The current destination: filled, brightened AND set heavier. Three carriers,
+   so the one that survives a colour-blind reader, a monochrome screen or a
+   forced-colours mode is still there. */
+.app-bar button[aria-current="page"] {
+  background: rgb(76 255 143 / .2);
+  box-shadow: var(--shadow-tab);
+  color: var(--accent-3);
+  font-weight: 500;
+}
 
 
 /* --------------------------------------------------------------------------
-   8  FEED CARDS
+   10  FEED CARDS
+   A card is a raised object: a translucent green surface, a faint green edge,
+   28px of radius and a deep soft shadow under it.
+
    content-visibility lets the browser skip the layout and paint of every card
    that is off screen, which is what keeps a long feed at 60 fps on a cheap
    phone. contain-intrinsic-size gives it a believable guess for the height it
    is skipping, so the scrollbar does not jump when cards are rendered for the
-   first time.
+   first time. The card's own shadow is painted by the card and not by a
+   descendant, so the paint containment that comes with content-visibility does
+   not clip it.
    -------------------------------------------------------------------------- */
 
-.feed { display: block; }
+.feed { display: block; padding: var(--s-3) var(--s-3) 0; }
 
 .card {
   content-visibility: auto;
   contain-intrinsic-size: auto 560px;
-  border-bottom: var(--hairline) solid var(--hair);
-  padding-bottom: var(--s-3);
+  padding: var(--s-4);
   margin-bottom: var(--s-4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: var(--hairline) solid var(--edge);
+  box-shadow: var(--shadow);
 }
 
 .card__head {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-3);
   min-height: var(--tap);
 }
 
 /* The author link is a standalone target, not a link inside a sentence, so
    WCAG 2.5.8's inline-text exemption does not cover it and it has to hold the
-   44px floor on its own. It was 21px tall — the line box of --f-3 text — while
-   the row around it was 44px, which measures the row rather than the thing you
-   have to hit. inline-flex is what lets a min-height apply to a link at all.
+   44px floor on its own. inline-flex is what lets a min-height apply to a link
+   at all.
 
    Consequence to keep in mind: in the detail view this link fills its heading
-   exactly, and that heading clips, so .view-head__title in section 11 exists to
+   exactly, and that heading clips, so .view-head__title in section 13 exists to
    let the focus ring out. Changing this height changes nothing there — the room
    is derived from --ring-reach, not from this box — but removing the min-height
-   would put the target back under the floor. */
+   would put the target back under the floor.
+
+   The family is stated rather than inherited, and that is not decoration. In
+   the detail view this link is the entire contents of an <h1>, and every
+   heading in this design is set in Instrument Serif — so without this line a
+   handle would be rendered as though it were a figure, which is the one
+   distinction the whole type system rests on. A name is a word. */
 .card__author {
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
-  font-weight: 650;
+  font-family: var(--sans);
+  font-weight: 500;
   font-size: var(--f-3);
+  color: var(--head);
   text-decoration: none;
 }
-.card__addr   { color: var(--mute); font-size: var(--f-2); }
+.card__author:hover { color: var(--accent-2); }
 
-/* price per view sits in the head, beside the name — never in a tooltip,
-   never behind a tap. You see what an impression costs before you cause one. */
+.card__addr { color: var(--mute); font-size: var(--f-2); }
+
+/* Price per view sits in the head, beside the name — never in a tooltip, never
+   behind a tap. You see what an impression costs before you cause one, and it
+   is set in the accent because it is the number this card is about. */
 .card__price {
   margin-inline-start: auto;
-  font-size: var(--f-3);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fig-2);
+  color: var(--accent);
   white-space: nowrap;
 }
 .card__price[data-dust="1"]::after {
   content: "·dust";
+  font-family: var(--sans);
   font-size: var(--f-1);
   font-weight: 400;
   color: var(--mute);
@@ -490,38 +952,50 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 
 /* Time to expiry: a post is a lease, and the lease is on the card. A span and
    not a <time>, because it has to exist before its value does; it carries the
-   instant in data-ends and the state in data-state once app.mjs has both. */
+   instant in data-ends and the state in data-state once app.mjs has both.
+
+   It stays in Outfit rather than the serif because what it prints is a phrase
+   with a number in it — "2 days left" — and not a figure. */
 .card__expiry {
   font-size: var(--f-2);
   color: var(--mute);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.card__expiry[data-state="settled"] { color: var(--ink); text-decoration: line-through; }
+/* Settled: struck through AND brightened. The strike is the carrier; the
+   colour agrees with it. */
+.card__expiry[data-state="settled"] { color: var(--text); text-decoration: line-through; }
 
 .card__foot {
   display: flex;
   align-items: baseline;
-  gap: var(--s-3);
-  padding: 0 var(--s-3);
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-3);
   font-size: var(--f-2);
   color: var(--mute);
 }
+.card__earned { color: var(--accent-2); font-size: var(--fig-1); }
 
 
 /* --------------------------------------------------------------------------
-   9  THE PICTURE FRAME
+   11  THE PICTURE FRAME
    Every frame reserves its aspect ratio from the post's own metadata (w and h
    travel in the act, so they are known before a single byte of the picture
    is fetched). Nothing shifts when the bytes arrive. That is the whole trick,
    and it costs one custom property.
+
+   The frame is a panel sunk into the card, so it takes the panel radius and
+   clips the picture to it.
    -------------------------------------------------------------------------- */
 
 .frame {
   position: relative;
   aspect-ratio: var(--ar, 4 / 5);
-  background: var(--paper);
-  border-block: var(--hairline) solid var(--hair);
+  margin-block: var(--s-3);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge);
   overflow: hidden;
 }
 
@@ -542,13 +1016,12 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 /* The redacted state: a settled post's picture is gone from every node, and the
    frame says so rather than showing a broken image icon.
 
-   The centring is done on the pseudo-element, not on .frame. This rule used to
-   set `display: grid` on `.frame[data-redacted="1"]`, which is two units of
-   specificity — enough to out-rank `[hidden]` and pin a redacted frame open
-   even when the app had hidden it. That is the same class of defect that once
-   pinned the offline banner open. Component display rules stay at one class of
-   specificity in this file so that hiding always wins. */
-.frame[data-redacted="1"] { background: var(--fill); }
+   The centring is done on the pseudo-element, not on .frame. This rule must
+   never set `display` on `.frame[data-redacted="1"]`: that selector is two
+   units of specificity, enough to out-rank [hidden] and pin a redacted frame
+   open even when the app had hidden it. Component display rules stay at one
+   class of specificity in this file so that hiding always wins. */
+.frame[data-redacted="1"] { background: var(--inset); border-style: dashed; }
 .frame[data-redacted="1"]::after {
   content: "settled · payload redacted";
   position: absolute;
@@ -561,14 +1034,17 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   color: var(--mute);
 }
 
-/* the impression marker: a hairline that fills while the billable dwell runs,
-   so nobody is ever billed by something they could not see happening. */
+/* The impression marker: a lit bar that fills while the billable dwell runs,
+   so nobody is ever billed by something they could not see happening. It is
+   drawn in the accent with a halo, because it is the most live thing on the
+   screen — money is being spent while it moves. */
 .frame__dwell {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
-  height: 2px;
-  background: var(--ink);
+  height: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgb(76 255 143 / .7);
   transform: scaleX(var(--dwell, 0));
   transform-origin: left;
   transition: transform var(--motion) linear;
@@ -576,44 +1052,63 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 
 
 /* --------------------------------------------------------------------------
-   10  ACTION BAR
+   12  ACTION BAR
    Counts are part of the label, not a badge: "like 12" reads aloud correctly
-   and needs no separate accessible name. Every target is at least 44px.
+   and needs no separate accessible name. Every target is at least 44px, and
+   every one of them is a pill.
    -------------------------------------------------------------------------- */
 
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-2) var(--s-2) var(--s-1);
+  gap: var(--s-2);
+  margin-top: var(--s-3);
 }
 
 .action {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
+  gap: var(--s-2);
   min-height: var(--tap);
   min-width: var(--tap);
-  padding: 0 var(--s-2);
+  padding: 0 var(--s-3);
   justify-content: center;
-  font-size: var(--f-3);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
+  border-radius: var(--radius-pill);
   border: var(--hairline) solid transparent;
+  font-size: var(--f-3);
+  font-weight: 500;
+  color: var(--accent-2);
+  cursor: pointer;
+  transition: background var(--motion) linear, border-color var(--motion) linear;
 }
-.action:hover { border-color: var(--hair); }
+.action:hover { background: var(--pill-bg); border-color: var(--pill-edge); }
 .action svg { width: 18px; height: 18px; }
-.action[aria-pressed="true"] { font-weight: 700; }
-.action[aria-pressed="true"] svg { fill: var(--ink); }
+.action .num { font-size: var(--fig-1); }
+
+/* Pressed: the outline fills, the pill fills, and the colour brightens. The
+   filled glyph is the carrier a monochrome screen still shows. */
+.action[aria-pressed="true"] {
+  background: var(--pill-strong-bg);
+  border-color: var(--pill-strong-edge);
+  color: var(--accent-3);
+}
+.action[aria-pressed="true"] svg { fill: var(--accent); stroke: var(--accent); }
+
 .action[disabled] { color: var(--mute); cursor: not-allowed; }
 .action[disabled] svg { stroke: var(--mute); }
 
-.action--views { margin-inline-start: auto; color: var(--mute); cursor: default; }
-.action--views:hover { border-color: transparent; }
+.action--views {
+  margin-inline-start: auto;
+  color: var(--mute);
+  font-weight: 300;
+  cursor: default;
+}
+.action--views:hover { background: transparent; border-color: transparent; }
+.action--views .num { color: var(--text); }
 
 
 /* --------------------------------------------------------------------------
-   11  POST DETAIL AND COMMENTS
+   13  POST DETAIL AND COMMENTS
    The detail view is the same column with the numbers unfolded: the euro
    figures a post has drawn, the views behind them, and the lease it is on.
    -------------------------------------------------------------------------- */
@@ -622,15 +1117,14 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-2);
   min-height: var(--tap);
-  border-bottom: var(--hairline) solid var(--hair);
 }
 
 /* The detail heading carries .truncate, so a long handle is clipped instead of
    pushing the state label off the row — and .truncate is overflow:hidden, which
    clips to the PADDING box. The only thing inside this heading is #post-author,
-   a link that now holds the 44px target on its own, so the heading's box ends up
+   a link that holds the 44px target on its own, so the heading's box ends up
    exactly the link's box: flush on the left where the text starts and 44px tall
    because the link is. A focus ring paints --ring-reach outside the link, which
    put the whole ring outside the clip. The one element a keyboard user has to
@@ -641,7 +1135,7 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
    so nothing on the row moves: the heading's content box, the text in it and the
    ellipsis all sit where they did. The ring is then drawn inside the clip, and
    the negative margin lets it paint over the flex gap beside it, which is empty
-   paper. Both figures come from the same token, so they cannot drift apart.
+   ground. Both figures come from the same token, so they cannot drift apart.
 
    The alternatives were worse. Dropping .truncate lets a long handle overflow the
    row; shrinking the link gives up the tap target; drawing this ring inward, as
@@ -654,60 +1148,96 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 .view-head__title {
   padding: var(--ring-reach);
   margin: calc(var(--ring-reach) * -1);
+  font-size: var(--f-6);
 }
 
+/* #post-state prints the word "live" or "settled". A word, and now also a
+   colour — but the word came first and still carries it alone. */
+#post-state {
+  flex: none;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  border: var(--hairline) solid var(--pill-edge);
+  color: var(--accent-2);
+}
+
+#view-post > figure { padding-inline: var(--s-3); }
+
+/* The economics of one post, printed rather than summarised: a panel sunk into
+   the page, two columns, hairline dividers between the cells. */
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--hairline);
-  background: var(--hair);
-  border-block: var(--hairline) solid var(--hair);
-  margin-block: var(--s-4);
+  margin: var(--s-4) var(--s-3);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge);
+  overflow: hidden;
 }
 .stats > div {
-  background: var(--paper);
-  padding: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-block-start: var(--hairline) solid var(--divider);
+  border-inline-start: var(--hairline) solid var(--divider);
 }
-.stats dt { font-size: var(--f-1); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
-.stats dd { font-size: var(--f-5); font-weight: 650; font-variant-numeric: tabular-nums; }
+.stats > div:nth-child(-n + 2) { border-block-start: 0; }
+.stats > div:nth-child(odd)    { border-inline-start: 0; }
+.stats dt {
+  font-size: var(--f-1);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.stats dd { margin-top: var(--s-2); font-size: var(--fig-2); color: var(--text); }
 
-.section-title { margin-block: var(--s-5) var(--s-2); }
+.section-title { margin: var(--s-5) var(--s-3) var(--s-2); }
 
 /* #comment-list is an <ol role="list"> whose rows are <li class="comment-item">
    wrapping an <article class="comment">. The reset already strips the markers
-   and the padding for a list carrying role="list"; the rest of this block is
-   unchanged, because the article still draws the row. */
-.comments { display: block; padding: 0 var(--s-3); margin-top: var(--s-3); }
-.comment-item { display: block; }
+   and the padding for a list carrying role="list"; the article still draws the
+   row, and it draws it as a small card. */
+.comments { display: block; padding-inline: var(--s-3); margin-top: var(--s-3); }
+.comment-item { display: block; margin-bottom: var(--s-2); }
 .comment {
-  padding: var(--s-3) 0;
-  border-top: var(--hairline) solid var(--hair);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-3);
+  background: var(--surface-2);
+  border: var(--hairline) solid var(--edge);
 }
 .comment__head { display: flex; gap: var(--s-2); align-items: baseline; font-size: var(--f-2); }
-.comment__author { font-weight: 650; color: var(--ink); }
-.comment__at { color: var(--mute); margin-inline-start: auto; font-variant-numeric: tabular-nums; }
-.comment__text { font-size: var(--f-3); white-space: pre-wrap; }
+.comment__author { font-weight: 500; color: var(--head); }
+.comment__addr { color: var(--mute); }
+.comment__at { color: var(--mute); margin-inline-start: auto; font-size: var(--f-3); }
+.comment__text { margin-top: var(--s-2); font-size: var(--f-3); color: var(--text-2); white-space: pre-wrap; }
 
-/* the tombstone: what survives deletion, printed plainly */
+/* The tombstone: what survives deletion, printed plainly. Monospace, because
+   what survives is hashes and identifiers rather than sentences. */
 .tombstone {
   margin: var(--s-4) var(--s-3);
-  border: var(--hairline) solid var(--hair);
-  padding: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge);
   font-family: var(--mono);
   font-size: var(--f-2);
   line-height: 1.7;
+  color: var(--text-2);
   overflow-x: auto;
 }
 
 
 /* --------------------------------------------------------------------------
-   12  SHEETS
+   14  SHEETS
    Native <dialog>. The platform gives us the focus trap, the Escape key, the
    inertness of the page behind and the top layer for free; reimplementing any
    of that in JavaScript would be worse in every browser.
 
    A sheet rises from the bottom on a phone and stays the same width as the
-   column on a desktop, because the desktop is the phone.
+   column on a desktop, because the desktop is the phone. Its ground is opaque
+   rather than translucent: a modal sits in the top layer above the scrim, the
+   glow behind it is already covered, and a translucent panel over a scrim over
+   a wash is three surfaces of guesswork under the text. The green in it comes
+   from a gradient of its own instead.
    -------------------------------------------------------------------------- */
 
 .sheet {
@@ -716,16 +1246,25 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   max-height: 88dvh;
   margin: auto auto 0;
   padding: 0;
-  border: var(--hairline) solid var(--hair);
+  border: var(--hairline) solid var(--edge-lit);
   border-bottom: 0;
-  background: var(--paper);
-  color: var(--ink);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(47 168 106 / .18), rgb(47 168 106 / 0) 62%),
+    var(--page-lift);
+  color: var(--text);
+  box-shadow: 0 -18px 60px rgb(0 0 0 / .6);
   display: flex;            /* dialog is display:none until open; :open wins */
   flex-direction: column;
+  overflow: hidden;         /* so the body's scroll respects the top corners */
 }
 .sheet:not([open]) { display: none; }
 .sheet[open] { animation: sheet-in var(--motion) var(--ease); }
-.sheet::backdrop { background: var(--scrim, rgb(0 0 0 / .55)); }
+.sheet::backdrop {
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
 
 @keyframes sheet-in {
   from { transform: translateY(2rem); }
@@ -733,11 +1272,10 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 }
 
 /* The head stays on screen while the sheet's contents scroll, and the column
-   flex layout is what does it — not stickiness. This rule carried
-   `position: sticky; top: 0` and a comment crediting it, and both were wrong:
-   sticky only does something inside a scrolling ancestor, and the head has none.
-   The scroller is .sheet__body, which is the head's SIBLING, and .sheet itself
-   never scrolls — it is a column flex container with a max-height.
+   flex layout is what does it — not stickiness. Sticky only does something
+   inside a scrolling ancestor, and the head has none: the scroller is
+   .sheet__body, which is the head's SIBLING, and .sheet itself never scrolls —
+   it is a column flex container with a max-height.
 
    The real mechanism: .sheet is a fixed-height column, .sheet__body is a scroll
    container, and a scroll container's automatic minimum size is zero, so the
@@ -749,18 +1287,19 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-3);
-  border-bottom: var(--hairline) solid var(--hair);
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border-bottom: var(--hairline) solid var(--edge);
   flex: none;
-  background: var(--paper);
 }
 /* The title yields first when the head is tight. The meter never yields, and
    the close button never yields; between them they are about 160px, so on the
    narrowest phone the title truncates rather than the row overflowing. Nothing
    in this app is allowed to scroll the page sideways. */
 .sheet__title {
-  font-size: var(--f-5);
-  font-weight: 650;
+  font-family: var(--serif);
+  font-size: var(--f-6);
+  font-weight: 400;
+  color: var(--head);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -789,14 +1328,34 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
   margin-inline-start: auto;
   white-space: nowrap;
 }
-.sheet__meter .money { font-size: var(--f-3); font-weight: 650; }
+.sheet__meter .money { font-size: var(--fig-1); color: var(--accent); }
 
-.sheet__close { margin-inline-start: auto; min-width: var(--tap); min-height: var(--tap); cursor: pointer; }
+.sheet__close {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border-radius: var(--radius-pill);
+  border: var(--hairline) solid var(--edge);
+  color: var(--accent-2);
+  cursor: pointer;
+  transition: background var(--motion) linear;
+}
+.sheet__close:hover { background: var(--pill-bg); }
 
+/* scroll-padding is here for the focus ring. This element is the scroll
+   container for a long sheet, and a control that the platform scrolls to the
+   very top of it would sit flush against the clip, with the --ring-reach the
+   ring paints above the control cut off. Reserving that reach as scroll
+   padding means every control the keyboard reaches is scrolled to a position
+   where its whole ring fits. */
 .sheet__body {
   overflow-y: auto;
   overscroll-behavior: contain;   /* the page behind never scrolls with it */
-  padding: var(--s-4) var(--s-3) calc(var(--s-5) + env(safe-area-inset-bottom));
+  scroll-padding: var(--ring-reach);
+  padding: var(--s-4) var(--s-4) calc(var(--s-5) + env(safe-area-inset-bottom));
 }
 
 /* Rhythm inside a sheet. The reset zeroes every margin, so the vertical space
@@ -807,114 +1366,197 @@ small, .meta { font-size: var(--f-2); color: var(--mute); }
 
 /* the grab handle: geometry, not an image */
 .sheet__grip {
-  width: 36px;
+  width: 40px;
   height: 4px;
-  background: var(--hair);
+  border-radius: var(--radius-pill);
+  background: var(--edge-lit);
   margin: var(--s-2) auto 0;
 }
 
 
 /* --------------------------------------------------------------------------
-   13  FORMS
+   15  FORMS
    Native controls, sized for thumbs, labelled in full. 16px minimum on inputs
    because anything smaller makes iOS zoom the viewport on focus, and a
    viewport that jumps on focus is not smooth.
+
+   Single-line inputs and selects are pills, like every other control in this
+   system. A textarea and a file input are panels, because a pill with four
+   lines of text in it is not a pill.
    -------------------------------------------------------------------------- */
 
 .field { display: block; margin-bottom: var(--s-4); }
 .field > label,
-.field > .field__label { display: block; font-size: var(--f-2); font-weight: 650; margin-bottom: var(--s-1); }
-.field__hint { display: block; font-size: var(--f-2); color: var(--mute); margin-top: var(--s-1); }
+.field > .field__label {
+  display: block;
+  font-size: var(--f-2);
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: var(--s-2);
+}
+.field__hint { display: block; font-size: var(--f-2); color: var(--mute); margin-top: var(--s-2); }
 
 input[type="text"],
 input[type="number"],
 input[type="url"],
 input[type="search"],
-textarea,
 select {
   width: 100%;
   min-height: var(--tap);
-  padding: var(--s-2);
-  background: var(--paper);
-  color: var(--ink);
-  border: var(--hairline) solid var(--ink);
-  border-radius: var(--radius);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--radius-pill);
+  background: var(--inset);
+  color: var(--text);
+  border: var(--hairline) solid var(--edge-field);
   font-size: 1rem;
+  font-weight: 300;
 }
-textarea { resize: vertical; min-height: 5rem; line-height: 1.5; }
+
+textarea {
+  width: 100%;
+  min-height: 5rem;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  color: var(--text);
+  border: var(--hairline) solid var(--edge-field);
+  font-size: 1rem;
+  font-weight: 300;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 input::placeholder, textarea::placeholder { color: var(--mute); }
+
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+
 /* A disabled control is still a control, and its outline is how you find it.
-   These borders were --hair, which is a 1.43:1 line: on a white screen the
-   field simply vanished and the label floated above nothing. --mute is the
-   same grey the disabled text is set in — 5.33:1 on paper, 7.56:1 on ink — so
-   the box is plainly there and plainly not available. */
+   --mute is the same green the disabled text is set in — 7.89:1 on the page,
+   5.01:1 on the brightest lit card — so the box is plainly there and plainly
+   not available. WCAG 1.4.11 exempts inactive controls from its 3:1 floor; we
+   hold it anyway, because "you may not use this" is only useful once you can
+   see the thing you may not use. */
 input:disabled, textarea:disabled, select:disabled {
   color: var(--mute);
   border-color: var(--mute);
   cursor: not-allowed;
 }
+
+/* The file input is a dropped-on panel rather than a pill, and its UA button is
+   turned into one of ours so the sheet has no grey plastic in it. */
 input[type="file"] {
-  border: var(--hairline) dashed var(--ink);
+  width: 100%;
   padding: var(--s-3);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) dashed var(--edge-field);
   min-height: var(--tap);
+  font-size: var(--f-3);
+  color: var(--mute);
+}
+input[type="file"]::file-selector-button {
+  margin-inline-end: var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  min-height: 36px;
+  border: var(--hairline) solid var(--pill-edge);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--accent-2);
+  font-family: var(--sans);
+  font-size: var(--f-2);
+  font-weight: 500;
+  cursor: pointer;
 }
 
 /* <summary> is an interactive control that the platform hands us with no class
-   to hang anything on, so it was missed: the "this session" disclosure in the
-   wallet was the height of its own 11px line box, about 16px, and it is the
+   to hang anything on, so it was missed once: the "this session" disclosure in
+   the wallet was the height of its own 11px line box, about 16px, and it is the
    only way to reach the itemised spend. Padding rather than a flex display,
    because changing a summary's display box removes its disclosure marker. */
 summary {
   min-height: var(--tap);
   padding-block: var(--s-3);
   cursor: pointer;
+  color: var(--mute);
 }
+summary::marker { color: var(--accent-2); }
 
-/* the receipt: every line of what an action will cost, before it is sent */
+/* The receipt: every line of what an action will cost, before it is sent. A
+   panel sunk into the sheet, one row per line, hairline between them. */
 .receipt {
-  border-block: var(--hairline) solid var(--hair);
   margin-block: var(--s-4);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge);
   font-size: var(--f-3);
 }
 .receipt > div,
 .receipt > li {
   display: flex;
   gap: var(--s-3);
+  align-items: baseline;
   justify-content: space-between;
-  padding: var(--s-2) 0;
+  padding: var(--s-3) 0;
   list-style: none;
 }
 .receipt > div + div,
-.receipt > li + li { border-top: var(--hairline) solid var(--hair); }
-.receipt dt, .receipt .k { color: var(--mute); }
-.receipt dd, .receipt .v { font-variant-numeric: tabular-nums; margin: 0; }
-.receipt .is-total { font-weight: 700; }
-.receipt .is-total .k { color: var(--ink); }
+.receipt > li + li { border-top: var(--hairline) solid var(--divider); }
+.receipt dt, .receipt .k { color: var(--mute); font-weight: 300; }
+.receipt dd, .receipt .v { margin: 0; font-size: var(--fig-1); color: var(--text); text-align: end; }
+/* The total is the one figure a receipt is about — it is the number that
+   decides whether to publish, and it is the only one on the screen that
+   announces itself when it changes. It is set two steps up from the lines
+   above it, which are its components. */
+.receipt .is-total .k { color: var(--text); font-weight: 500; }
+.receipt .is-total .v { font-size: var(--fig-3); color: var(--accent); }
 
-/* the slippage line: the price you were shown, the worst fill you accept, and
+/* The slippage line: the price you were shown, the worst fill you accept, and
    how far the pool moves under you. A swap that fills at a price the screen
    never showed is refused, so the screen has to show it. */
 .slippage {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: var(--s-1) var(--s-3);
+  gap: var(--s-2) var(--s-3);
+  align-items: baseline;
+  margin-block: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-2);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge);
   font-size: var(--f-2);
-  font-variant-numeric: tabular-nums;
-  padding: var(--s-3) 0;
 }
 .slippage .k { color: var(--mute); }
-.slippage .v { text-align: end; }
-.slippage[data-impact="high"] .v { font-weight: 700; }
+.slippage .v { text-align: end; font-size: var(--fig-1); color: var(--text); }
+.slippage[data-impact="high"] .v { color: var(--warn); }
+/* The warning is a sentence. The warm edge and the warm figures agree with it;
+   they do not replace it, and a reader who sees no colour at all still gets
+   the whole message. */
+.slippage[data-impact="high"] {
+  border-color: rgb(238 154 114 / .38);
+}
 .slippage[data-impact="high"]::after {
   content: "this trade moves the pool. check the minimum you receive.";
   grid-column: 1 / -1;
-  color: var(--ink);
-  border: var(--hairline) solid var(--ink);
-  padding: var(--s-2);
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--radius-3);
+  background: rgb(238 154 114 / .1);
+  color: var(--warn);
 }
 
-/* segmented control: two hard-edged halves, the selected one inverted */
-.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: var(--hairline) solid var(--ink); }
+/* Segmented control: a pill containing pills, the same object as the tab bar.
+   The selected half is filled and set heavier as well as recoloured. */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--s-1);
+  padding: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--inset);
+  border: var(--hairline) solid var(--edge-2);
+}
 .segmented label {
   display: grid;
   place-items: center;
@@ -923,28 +1565,42 @@ summary {
   cursor: pointer;
 }
 .segmented input { position: absolute; opacity: 0; pointer-events: none; }
-.segmented input:checked + span { background: var(--ink); color: var(--paper); }
-.segmented label > span { display: grid; place-items: center; width: 100%; height: 100%; padding: 0 var(--s-2); }
+.segmented label > span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--s-3);
+  border-radius: var(--radius-pill);
+  color: var(--mute);
+  transition: background var(--motion) linear, color var(--motion) linear;
+}
+.segmented input:checked + span {
+  background: var(--accent);
+  color: var(--page);
+  font-weight: 500;
+}
 
 /* The real radio is transparent, so the ring has to be drawn on the label, and
-   it has to be drawn inside it because the two halves share a border. Same
-   two-ring rule as the global one, turned inward: an inset paper band at
-   0–2px, the ink outline over 2–4px. The selected half is ink, so the paper
-   band carries it there; the unselected half is paper, so the ink outline
-   carries it there. A single inset ink ring was invisible on the selected
-   half, which is the half a keyboard lands on first. */
+   it has to be drawn inside it because the two halves sit inside one capsule.
+   Same two-ring rule as the global one, turned inward: an inset dark band at
+   0–2px, the accent outline over 2–4px. The selected half is a bright accent
+   fill, so the dark band carries it there; the unselected half is dark, so the
+   accent outline carries it there. A single inset accent ring was invisible on
+   the selected half, which is the half a keyboard lands on first. */
 .segmented input:focus-visible + span {
-  outline: var(--ring) solid var(--ink);
+  outline: var(--ring) solid var(--accent);
   outline-offset: calc(var(--ring-reach) * -1);
-  box-shadow: inset 0 0 0 var(--ring-gap) var(--paper);
+  box-shadow: inset 0 0 0 var(--ring-gap) var(--page);
 }
 
 
 /* --------------------------------------------------------------------------
-   14  BUTTONS
-   Two weights: an inverted block for the act that spends money, an outlined
-   one for everything else. Disabled is grey, never a faded colour, because
-   there are no colours to fade.
+   16  BUTTONS
+   Every button is a pill. Two weights: a filled accent capsule with a halo for
+   the act that spends money, and an outlined capsule for everything else.
+   Disabled is muted green, never a faded accent, because a faded accent still
+   looks live.
    -------------------------------------------------------------------------- */
 
 .btn {
@@ -953,35 +1609,40 @@ summary {
   justify-content: center;
   gap: var(--s-2);
   min-height: var(--tap);
-  padding: 0 var(--s-4);
-  border: var(--hairline) solid var(--ink);
-  border-radius: var(--radius);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: var(--f-4);
-  font-weight: 650;
+  padding: 0 var(--s-5);
+  border-radius: var(--radius-pill);
+  border: var(--hairline) solid var(--pill-edge);
+  background: var(--pill-bg);
+  color: var(--accent-2);
+  font-size: var(--f-3);
+  font-weight: 500;
   cursor: pointer;
+  text-align: center;
   text-decoration: none;
-  transition: background var(--motion) linear, color var(--motion) linear;
+  transition: background var(--motion) linear, color var(--motion) linear,
+              border-color var(--motion) linear, box-shadow var(--motion) linear;
 }
-.btn:hover { background: var(--ink); color: var(--paper); }
+.btn:hover { background: var(--pill-strong-bg); border-color: var(--pill-strong-edge); color: var(--accent-3); }
 .btn:active { transform: translateY(1px); }
 
-.btn--primary { background: var(--ink); color: var(--paper); }
-.btn--primary:hover { background: var(--paper); color: var(--ink); }
+/* The act that spends money is the only solid object in the interface. */
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--page);
+  box-shadow: var(--shadow-lit);
+}
+.btn--primary:hover { background: var(--accent-3); border-color: var(--accent-3); color: var(--page); }
 
 .btn--wide { width: 100%; }
 
 /* A quiet button borrows the colours of whatever it is sitting on instead of
-   forcing paper-and-ink, and that is a correctness fix rather than a stylistic
-   one. #app-banner-retry is a .btn--quiet inside .banner, and .banner is an ink
-   surface with paper text. The old rule set `background: transparent` together
-   with `color: var(--ink)` on hover, which put ink text on the ink banner:
-   pointing at the retry button — the only control on the one strip that tells
-   you the network is gone — erased its label. `color: inherit` takes paper from
-   the banner and ink from the page, so the label is 21:1 on both, and
-   currentColor draws the hover edge in whichever of the two it turned out to
-   be. */
+   forcing the pill palette, and that is a correctness fix rather than a
+   stylistic one. #app-banner-retry is a .btn--quiet inside .banner, which has
+   its own warm surface and its own text colour; a button that hard-coded the
+   accent there would put green on amber. `color: inherit` takes the banner's
+   colour inside the banner and the page's colour elsewhere, and currentColor
+   draws the hover edge in whichever of the two it turned out to be. */
 .btn--quiet {
   border-color: transparent;
   background: transparent;
@@ -990,41 +1651,51 @@ summary {
 }
 .btn--quiet:hover { background: transparent; color: inherit; border-color: currentColor; }
 
-/* Disabled is grey, never a faded colour — but the border is --mute and not
-   --hair. A 1.43:1 border made a disabled primary button read as a stray line
-   of text with no edges; at 5.33:1 it still reads as unavailable and still
-   reads as a button. WCAG 1.4.11 exempts inactive controls from its 3:1 floor;
-   we hold the floor anyway, because "you may not press this" is only useful
-   once you can see the thing you may not press. */
+/* Disabled is muted green — and the border is --mute, not --edge. A 1.29:1
+   border would make a disabled primary button read as a stray line of text
+   with no edges; at 7.89:1 on the page it still reads as unavailable and still
+   reads as a button. */
 .btn[disabled],
 .btn[aria-disabled="true"] {
   border-color: var(--mute);
-  background: var(--paper);
+  background: transparent;
   color: var(--mute);
+  box-shadow: none;
   cursor: not-allowed;
   transform: none;
 }
 .btn[disabled]:hover,
-.btn[aria-disabled="true"]:hover { background: var(--paper); color: var(--mute); }
+.btn[aria-disabled="true"]:hover { background: transparent; color: var(--mute); border-color: var(--mute); }
 
 /* A button that is waiting on the network wears the same edge as a disabled
    one, because that is what it is until the writer answers.
 
    The selector matches the ATTRIBUTE, not a value. It used to be
-   [data-busy="1"] while the hook contract and DESIGN §8 both said [data-busy],
-   so an app.mjs that wrote data-busy="true" — the obvious thing to write —
-   would have got a button that still looked pressable while an act that spends
-   money was in flight, and no error anywhere to say so. Presence is the state:
-   the contract now says set it to the empty string and remove it when the act
-   resolves, because [data-busy="false"] would still match this rule. */
-.btn[data-busy] { color: var(--mute); border-color: var(--mute); }
+   [data-busy="1"] while the hook contract said [data-busy], so an app.mjs that
+   wrote data-busy="true" — the obvious thing to write — would have got a button
+   that still looked pressable while an act that spends money was in flight, and
+   no error anywhere to say so. Presence is the state: the contract says set it
+   to the empty string and remove it when the act resolves, because
+   [data-busy="false"] would still match this rule. */
+.btn[data-busy] {
+  color: var(--mute);
+  border-color: var(--mute);
+  background: transparent;
+  box-shadow: none;
+}
 
 
 /* --------------------------------------------------------------------------
-   15  TOASTS
+   17  TOASTS
    Every refusal in this app carries a code, a mechanism and a next step —
    that is what core/errors.mjs publishes and it is what the toast prints. A
    user who is refused learns the same three things a bot would parse.
+
+   A refusal is the one surface here that is nearly opaque. It can land over a
+   picture, over a bright patch of the glow, or over a filled button, and the
+   sentence on it has to be readable on all three, so it brings its own ground
+   rather than borrowing one. The warm edge is the only place the palette
+   leaves green, and it agrees with the words instead of replacing them.
    -------------------------------------------------------------------------- */
 
 .toasts {
@@ -1057,33 +1728,47 @@ summary {
 .error-slot:not(:empty) { margin-block: var(--s-4); }
 
 .toast {
+  position: relative;
   pointer-events: auto;
   width: 100%;
   max-width: calc(var(--col) - var(--s-5));
-  background: var(--ink);
-  color: var(--paper);
-  padding: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  padding-inline-end: var(--tap);
+  border-radius: var(--radius-3);
+  background: var(--raise);
+  border: var(--hairline) solid rgb(238 154 114 / .38);
+  box-shadow: var(--shadow);
+  color: var(--text);
   display: grid;
   gap: var(--s-1);
   animation: toast-in var(--motion) var(--ease);
 }
-.toast__code { font-family: var(--mono); font-size: var(--f-1); letter-spacing: .06em; opacity: .8; }
-.toast__msg  { font-size: var(--f-3); font-weight: 650; }
-.toast__next { font-size: var(--f-2); }
+.toast__code {
+  font-family: var(--mono);
+  font-size: var(--f-1);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.toast__msg  { font-size: var(--f-3); font-weight: 500; color: var(--head); }
+.toast__next { font-size: var(--f-2); color: var(--text-2); }
 .toast__close {
   position: absolute;
   inset-block-start: var(--s-1);
   inset-inline-end: var(--s-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: var(--tap);
   min-height: var(--tap);
+  border-radius: var(--radius-pill);
+  color: var(--mute);
   cursor: pointer;
 }
-.toast { position: relative; padding-inline-end: var(--tap); }
-/* There is no outline-colour override here any more. The old one repainted the
-   ring paper so it would show against the toast's ink body — but the ring is
-   drawn outside the toast, over the paper page, where a paper ring is nothing
-   at all. The two-ring rule in section 4 covers this surface and its close
-   button without a special case. */
+.toast__close:hover { color: var(--text); }
+/* There is no outline-colour override here. The ring is drawn outside the
+   toast, over the page, and the two-ring rule in section 6 covers this surface
+   and its close button without a special case. */
 
 @keyframes toast-in {
   from { transform: translateY(.5rem); }
@@ -1092,24 +1777,29 @@ summary {
 
 
 /* --------------------------------------------------------------------------
-   16  SKELETONS, EMPTY STATES, BANNERS
-   A skeleton is grey because it is the absence of content, which is the same
-   family as a disabled control. It reserves the exact geometry of the card it
-   stands in for, so the real card lands without moving anything.
+   18  SKELETONS, EMPTY STATES, BANNERS
+   A skeleton is a dim green wash because it is the absence of content, which
+   is the same family as a disabled control. It reserves the exact geometry of
+   the card it stands in for, so the real card lands without moving anything.
    -------------------------------------------------------------------------- */
 
-.skeleton { pointer-events: none; }
+.skeleton { pointer-events: none; padding: var(--s-3) var(--s-3) 0; }
+/* #comment-skeleton carries both classes and .comments already pays the inline
+   padding, so this stops the two from stacking. Padding only — no display
+   property — so [hidden] still wins over it. */
+.skeleton.comments { padding-inline: 0; }
 .skeleton .sk {
-  background: var(--fill);
+  background: rgb(123 224 160 / .1);
+  border-radius: var(--radius-pill);
   animation: sk-pulse calc(var(--motion) * 8) linear infinite alternate;
 }
-.skeleton .sk--line   { height: .75rem; margin: var(--s-2) var(--s-3); }
+.skeleton .sk--line   { height: .75rem; margin-block: var(--s-3); }
 .skeleton .sk--short  { width: 40%; }
-.skeleton .sk--frame  { aspect-ratio: 4 / 5; margin: 0; }
+.skeleton .sk--frame  { aspect-ratio: 4 / 5; border-radius: var(--radius-2); margin: 0; }
 
 @keyframes sk-pulse {
   from { opacity: 1; }
-  to   { opacity: .45; }
+  to   { opacity: .4; }
 }
 
 .empty {
@@ -1120,33 +1810,47 @@ summary {
   gap: var(--s-3);
   justify-items: center;
 }
-.empty h2 { color: var(--ink); }
+.empty h2 { color: var(--head); }
+/* An empty state is the whole screen saying one thing, so its sentence is set
+   at the design's lead size rather than at body size. */
+.empty p { font-size: var(--f-5); max-width: 34ch; }
 
+/* Offline, read-only, writer-unreachable. One line, and the word carries the
+   state; the warm ground only agrees with it. */
 .banner {
-  border-bottom: var(--hairline) solid var(--hair);
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
   font-size: var(--f-2);
-  background: var(--ink);
-  color: var(--paper);
+  background: rgb(238 154 114 / .12);
+  border-block: var(--hairline) solid rgb(238 154 114 / .3);
+  color: var(--text);
   display: flex;
   gap: var(--s-2);
   align-items: center;
 }
 
 .notice {
-  border: var(--hairline) solid var(--hair);
-  padding: var(--s-3);
-  font-size: var(--f-2);
-  color: var(--mute);
   margin-block: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-2);
+  background: rgb(238 154 114 / .1);
+  border: var(--hairline) solid rgb(238 154 114 / .28);
+  font-size: var(--f-2);
+  color: var(--text-2);
 }
-.notice strong { color: var(--ink); }
+.notice strong { color: var(--warn); font-weight: 500; }
 
-.feed-end { padding: var(--s-6) var(--s-3); text-align: center; color: var(--mute); font-size: var(--f-2); }
+.feed-end {
+  padding: var(--s-6) var(--s-3);
+  text-align: center;
+  color: var(--mute);
+  font-size: var(--f-2);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
 
 
 /* --------------------------------------------------------------------------
-   17  UTILITIES
+   19  UTILITIES
    -------------------------------------------------------------------------- */
 
 .vh {
@@ -1158,7 +1862,7 @@ summary {
   white-space: nowrap;
   border: 0;
 }
-/* a skip link is only useful if it appears when a keyboard reaches it — and it
+/* A skip link is only useful if it appears when a keyboard reaches it — and it
    is a target like any other, so it holds the same 44px floor once it is. */
 .vh:focus-visible {
   position: fixed;
@@ -1170,35 +1874,91 @@ summary {
   display: inline-flex;
   align-items: center;
   margin: 0;
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--radius-pill);
   clip-path: none;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--accent);
+  color: var(--page);
 }
 
 .row { display: flex; align-items: center; gap: var(--s-2); }
 .row--between { justify-content: space-between; }
 .stack { display: grid; gap: var(--s-3); }
 .pad { padding-inline: var(--s-3); }
-.rule { border: 0; border-top: var(--hairline) solid var(--hair); margin-block: var(--s-4); }
+.rule { border: 0; border-top: var(--hairline) solid var(--divider); margin-block: var(--s-5); }
 .grow { flex: 1 1 auto; min-width: 0; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.caption { padding-top: var(--s-2); }
+.caption { padding-top: var(--s-2); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2); font-size: var(--f-2); color: var(--mute); }
 .input--narrow { max-width: 6rem; }
 
 [hidden] { display: none; }
 
 
 /* --------------------------------------------------------------------------
-   18  REDUCED MOTION
-   One rule, and it is the reason --motion exists. Setting the duration token
-   to zero removes every transition and every animation in the file at once —
-   no component override, no !important, and no chance of a new component
-   quietly opting itself back in.
+   20  A BRIGHTER ROOM
+   The old system inverted here: dark meant a black page and light meant a
+   white one. That inversion is gone. This design is dark at every setting,
+   because the swamp is the app and not a mode of it, and there is no white
+   variant of it to switch to.
+
+   What the light preference still tells us is real, though: the reader is in a
+   bright room, where a screen washes out and the faintest things on it go
+   first. So the same design is served with its contrast raised one step —
+   muted green a shade lighter, edges a shade stronger, and the glow turned
+   down to 78% so the wash cannot lift the ground under a paragraph as far as
+   it does in the dark. Nothing changes shape, nothing changes hue.
+
+   Measured, so the claim is checkable. --mute #96C6A5 is the only ink that
+   moves here, and it is measured on the grounds THIS block produces — the lit
+   card is dimmer on this path than on the default one, because the same block
+   turns the glow down:
+
+     --mute #96C6A5   10.33:1 on the page · 9.32:1 on an unlit card ·
+                       7.18:1 on the brightest lit card, which is that card
+                       composited with the glow at .78 rather than at 1.
+                       Against the full-strength lit card it is 6.57:1, so the
+                       figure holds whichever of the two grounds is taken.
+
+   One block, and only one. An earlier draft wrote the same body three times so
+   that [data-theme] on <html> could force the choice in either direction, but
+   that hook does not exist: index.html's contract removed <html data-theme>
+   and forbids app.mjs from writing it, because there is no second palette to
+   switch to. Two of those three blocks were therefore selectors nothing could
+   ever match, and a rule that cannot match is worse than absent — it reads as
+   a working override and invites the next change to be made in it. The device
+   preference is the whole of the mechanism, so the media query is the whole of
+   the code.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --mute:          #96C6A5;
+    --edge:          rgb(123 224 160 / .22);
+    --edge-2:        rgb(123 224 160 / .26);
+    --divider:       rgb(123 224 160 / .16);
+    --glow-strength: .78;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   21  REDUCED MOTION
+   Setting --motion to zero removes every transition and every keyed animation
+   that reads it — the tick on the meter, the sheet rising, a toast arriving,
+   the skeleton pulse, the dwell bar, every hover fade — at once, with no
+   component override and no chance of a new component quietly opting itself
+   back in.
+
+   The glow is the exception and has to be named, because its four blobs run on
+   their own long durations rather than on --motion. Switching their animations
+   off leaves them at the static filter and opacity declared in section 5, so
+   the light stays exactly where it is: four still gradients, no wobble, no
+   pulse, nothing moving anywhere on the screen.
    -------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   :root { --motion: 0s; }
+  .glow span { animation: none; }
   .btn:active { transform: none; }
   html { scroll-behavior: auto; }
 }

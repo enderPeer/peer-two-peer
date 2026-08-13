@@ -47,7 +47,7 @@
    accessibility fixes would ship and nobody already installed would receive
    them. This constant is the only thing that makes a shell change reach a
    device that already has the old one. */
-const VERSION = 2;
+const VERSION = 3;
 
 const SHELL_CACHE  = `ptp-shell-v${VERSION}`;
 const STATIC_CACHE = `ptp-static-v${VERSION}`;
@@ -77,6 +77,18 @@ const REQUIRED = [
 const OPTIONAL = [
   './manifest.webmanifest',
   './storage.mjs',
+  './wallet.mjs',
+
+  /* The three typefaces, vendored at app/fonts/. They are shell, not content:
+     the interface sets every figure in Instrument Serif and the wordmark in
+     Michroma, so an install that skipped them would come back offline in
+     fallback faces and look like a different application. They are OPTIONAL
+     rather than REQUIRED because a missing face costs the app its typography
+     and not its ability to start, and refusing to install over one absent font
+     file would be the wrong trade. */
+  './fonts/Outfit-var.woff2',
+  './fonts/Michroma-400.woff2',
+  './fonts/InstrumentSerif-400.woff2',
 ];
 
 const SHELL = [...REQUIRED, ...OPTIONAL];
