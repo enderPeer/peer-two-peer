@@ -86,9 +86,19 @@ export const EDITION = await (async function selfEdition() {
     if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
       return 'unavailable';
     }
+    // The specifier is BUILT rather than written, and that is not obfuscation.
+    // A dynamic import with a literal specifier is statically analysable, so a
+    // browser's module preloader resolves and FETCHES it eagerly — before this
+    // function runs, and regardless of the guard above. The guard was correct
+    // and the page still logged "Access to script at 'node:crypto' has been
+    // blocked by CORS policy" on every single load, because the fetch never
+    // depended on the code path. Concatenating the specifier leaves nothing for
+    // the preloader to resolve, so the module is reached only when this line
+    // actually executes, which is only ever on a host.
+    const nodeModule = (name) => import('node:' + name);
     const [{ readFileSync }, { createHash }] = await Promise.all([
-      import('node:fs'),
-      import('node:crypto'),
+      nodeModule('fs'),
+      nodeModule('crypto'),
     ]);
     return createHash('sha256').update(readFileSync(new URL(import.meta.url))).digest('hex');
   } catch {
