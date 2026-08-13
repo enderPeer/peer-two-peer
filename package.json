@@ -1,0 +1,30 @@
+{
+  "name": "peer-two-peer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Peer two Peer — a picture network where every impression is priced in euros, every action burns PTP, and the pictures live on the members' own devices.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "test": "node --test",
+    "chain:build": "node server/chain/build.mjs",
+    "chain:verify": "node server/chain/verify.mjs",
+    "close-epoch": "node server/scripts/close-epoch.mjs",
+    "compile": "node ops/compile.mjs",
+    "deploy": "node ops/deploy.mjs",
+    "pack": "node ops/ipfs-pack.mjs",
+    "agents": "node agents/run.mjs",
+    "agents:list": "node agents/run.mjs --list",
+    "verify:all": "node agents/run.mjs --gate"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "solc": "^0.8.24"
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "name": "chain",
+  "title": "The epoch chain, the election, and the way the record outlives the hosts",
+  "summary": "One signed, hash-linked block per closed epoch, plus the office that decides who may write and the packaging that lets the whole record be republished from a machine nobody owns. The chain does not decide what is true — replay decides — it makes silent rewriting detectable and publication attributable.",
+  "owns": [
+    "server/chain/**",
+    "ops/domain/**",
+    "ops/mirrors.json",
+    "ops/ipfs-pack.mjs",
+    "ops/publish.mjs",
+    "ops/liveness.mjs",
+    "ops/archive.mjs",
+    "docs/DECENTRALIZATION.md",
+    "docs/MIRRORS.md",
+    "docs/HOSTING.md",
+    "ops/README.md",
+    "test/chain.test.mjs"
+  ],
+  "dependsOn": ["core", "economics"],
+  "interfaces": [
+    "node server/chain/build.mjs    seal every closed epoch, incremental, refuses forks",
+    "node server/chain/verify.mjs   replay everything, check every root and every signature; exit non-zero on any mismatch",
+    "server/chain/election.mjs      who holds the pen: longest sealed chain, then longest log, then liveness",
+    "server/chain/keys.mjs          Ed25519 producer key handling; the host holds no spendable key",
+    "block = { v, net, height, epoch, time, prev, range:{start,end}, acts[], actsRoot, payloads[], payloadsRoot, tombstones[], package, stateRoot, oracle, constants, editions, producer, sig }"
+  ],
+  "checks": [
+    {
+      "name": "the record, sealed and verified",
+      "run": "node --test test/chain.test.mjs",
+      "why": "One file because it is one claim: a record is built from a log, sealed into blocks, packed, republished, and verified from the outside with no host and no key. The block shape, the roots, the tombstones, the election and the archive round trip are all steps of that one claim and are tested as such."
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "Verification needs the act log and the blocks and nothing else. No network, no host, no key of ours.",
+      "heldBy": "test/chain.test.mjs :: \"the published archive verifies with no host and no key\""
+    },
+    {
+      "statement": "A block claims exactly one thing: this producer observed this ordered range, computed this state under these constants and these formula editions. Every root is the root of its own list, and one act proves against it.",
+      "heldBy": "test/chain.test.mjs :: \"every root is the root of its own list, and one act proves against it\""
+    },
+    {
+      "statement": "The roots commit to the ORDER of the acts, not merely to the set of them. Swapping two acts must move a root, because a multiset commitment leaves a reordered epoch looking untouched.",
+      "heldBy": "test/chain.test.mjs :: \"an inserted line moves no root and is caught by the range\" — with core/merkle.mjs orderedRootOf, which commits each act at its own index"
+    },
+    {
+      "statement": "The state root is byte-stable across machines that share no key: canonical JSON, sorted keys, non-finite values refused, decimals at the published quantum. Two verifiers either match bits or can attribute the difference.",
+      "heldBy": "test/chain.test.mjs :: \"two machines that share no key seal the same state\""
+    },
+    {
+      "statement": "build.mjs is incremental and refuses forks: a block whose prev does not match the sealed head is refused, not overwritten, and a rebuild is byte-identical.",
+      "heldBy": "test/chain.test.mjs :: \"a fork is refused rather than repaired\""
+    },
+    {
+      "statement": "An empty record is a valid record of nothing, so a fresh fork is invited rather than broken, and an epoch in which nothing happened still seals a root.",
+      "heldBy": "test/chain.test.mjs :: \"an empty record is a valid record of nothing\""
+    },
+    {
+      "statement": "Redaction is scoring-neutral. A settled post's picture is gone, the structural hash is unmoved, the payload commitment is kept as the residue, and every earnings number for the epoch still reproduces.",
+      "heldBy": "test/chain.test.mjs :: \"redaction neutrality: the picture settles and every root still checks\""
+    },
+    {
+      "statement": "An internally consistent forgery signed by a different producer key does not become the canonical record. The producer is pinned against what was already published, and a key change is a human act.",
+      "heldBy": "test/chain.test.mjs :: \"an internally consistent forgery is refused because the key changed\""
+    },
+    {
+      "statement": "Silence is not a mandate: a host that has heard from no peer does not write.",
+      "heldBy": "test/chain.test.mjs :: \"rule 1: silence is not a mandate\""
+    },
+    {
+      "statement": "An incumbent yields only to a strictly longer record, and never follows someone who follows it. Two identical hosts elect exactly one.",
+      "heldBy": "test/chain.test.mjs :: \"rule 3: never follow someone who follows you\""
+    },
+    {
+      "statement": "Claims are checked, not believed. A peer's advertised numbers only start a handover; the record is fetched and verified before the pen moves.",
+      "heldBy": "test/chain.test.mjs :: \"rule 4: claims are checked, not believed\""
+    },
+    {
+      "statement": "A record that fails verification is never published. Stale is honest; wrong is poison.",
+      "heldBy": ".github/workflows/archive.yml — the sync step writes a verified marker only after server/chain/verify.mjs exits 0, and the publish step runs only on that marker; test/chain.test.mjs :: \"one changed act fails verification, and the report names the act\" is the other half"
+    }
+  ],
+  "open": [
+    {
+      "statement": "The same record packs to the same CAR and the same CID on any machine, so a republished archive is verifiable by content address alone.",
+      "why": "ops/ipfs-pack.mjs exists and test/chain.test.mjs checks that a rebuild is byte-identical on this machine, but nothing compares a pack produced on two different platforms. Determinism across machines is where a sort order or a mtime creeps in, and that is exactly the case not covered."
+    },
+    {
+      "statement": "ops/liveness.mjs and ops/archive.mjs hold the command line the scheduled workflows call them with.",
+      "why": "Neither script exists yet. .github/workflows/liveness.yml and archive.yml each carry a self-contained fallback that does the job, so the record is kept from the first day; the workflows prefer the scripts the moment they appear. Until they do, the command line is documented in this brief and enforced by nothing."
+    }
+  ],
+  "brief": {
+    "mission": "Make rewriting detectable and publication attributable, and make the record survive every machine of ours being off. That is three jobs: seal each closed epoch into a signed block, decide who holds the pen without a coordinator, and pack the whole record so a stranger can fetch it, replay it and get the same numbers.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 6, 9, 10 — the tombstone, the block, decentralised hosting",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain/ — canonical encoding, merkle, block sealing and election, read-only",
+      ".github/workflows/archive.yml and liveness.yml — the two jobs that call your scripts, and the fallbacks they carry until those exist"
+    ],
+    "rules": [
+      "ops/liveness.mjs and ops/archive.mjs are called by .github/workflows/liveness.yml and archive.yml, which the fleet owns. Keep the command line stable: `node ops/liveness.mjs --dir <site>` writes host.json and status.json and exits 0 even when nothing answers; `node ops/archive.mjs --root <repo> --site <site> --work <dir>` verifies before it publishes, exits 1 only when verification actually failed, exits 0 when no host answered, and writes the marker file the workflow gates publication on.",
+      "The CI contract for the verifier: `node server/chain/verify.mjs --dir <record>` with PTP_DATA_DIR set to the same path, where <record> holds acts.jsonl, chain.json and media/. With no argument it verifies the default data/ directory. It exits 0 on a record that checks out — including an empty one, so a fresh fork is invited rather than broken — and non-zero on any mismatch.",
+      "The producer key is Ed25519 and lives outside the repository (ops/keys/ is gitignored). Never commit one, never generate one in CI, and make verify.mjs work with only the public half.",
+      "Republishing must be deterministic: the same record packs to the same CAR and the same CID on any machine. Sort everything, stamp nothing that is not in the record.",
+      "The act roots commit to position, not to the multiset. Use orderedRootOf and positionalLeaf from core/merkle.mjs — a plain root over the act digests leaves two swapped acts with an unchanged root."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs chain is green",
+      "node server/chain/verify.mjs exits 0 on a real log and non-zero on a log with one byte changed",
+      "the archive published by CI can be replayed by a stranger with no host answering"
+    ],
+    "traps": [
+      "Fetch the chain before the acts. An epoch sealing between the two fetches then leaves the log ahead of the chain, which verifies with a warning; the reverse order hard-fails on a block the fetched log cannot close yet.",
+      "An internally consistent forgery signed by a different producer key must not become the canonical fallback. Pin the producer against what was already published, and treat a key change as a human act.",
+      "Floating-point in a state root is a fork. Everything committed is an integer or a decimal string with a stated quantum.",
+      "A record sealed by an older edition of core/merkle.mjs will not verify under the current one, and that is the correct outcome rather than a bug in the verifier: the roots are what changed. Rebuild the record rather than loosening the check."
+    ]
+  }
+}

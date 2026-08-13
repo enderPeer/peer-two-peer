@@ -1,0 +1,103 @@
+; ─────────────────────────────────────────────────────────────────────────────
+; Peer two Peer — DNS zone fragment.
+;
+; Paste into the zone for the domain you control, replace every <angle bracket>,
+; and change nothing else. This file is a fragment, not a zone: it has no SOA
+; and no NS records, because those belong to whoever runs the nameservers and
+; overwriting them is how a domain goes dark.
+;
+; Nothing here is required to reach the network. It is a convenience layer over
+; a content address that already works without any of it — see README.md, "why
+; the name is not the network". Everything below can be revoked by a registrar
+; and the network is unaffected.
+;
+; Regenerate the values with:   node ops/domain/name.mjs
+; ─────────────────────────────────────────────────────────────────────────────
+
+; The zone this fragment is written for. Every unqualified name below is
+; relative to it, so setting this wrongly silently misfiles every record.
+$ORIGIN <example.org>.
+
+; One hour. Short on purpose: the DNSLink record changes at every publication,
+; and a day-long TTL means a day of readers served the previous site by their
+; own resolver's cache, with nothing anyone can do about it from here.
+$TTL 3600
+
+; ── 1. DNSLink: the record that points the name at the content ───────────────
+;
+; A resolver asks for TXT at _dnslink.<domain>; a DNSLink-aware gateway reads
+; the answer and serves that content address. This one line is the whole of the
+; mechanism.
+;
+; Publish the /ipfs/ form OR the /ipns/ form, never both: two _dnslink values on
+; one name means the resolver picks, and it may pick differently on different
+; days for different readers.
+;
+; /ipfs/ — exact bytes, immutable. What a reader gets is what the operator meant
+; on the day they set it. It goes stale at the next publication, and updating it
+; is a deliberate DNS edit, which is the point: nothing changes under a reader
+; without somebody changing it.
+_dnslink        IN  TXT   "dnslink=/ipfs/<cid>"
+
+; /ipns/ — the mutable pointer, signed by the genesis producer key. Set this
+; instead if you want the domain to follow the network forward without a DNS
+; edit at every publication. The cost is that the key holder can change what
+; this domain serves without touching DNS, and that IPNS records expire: stop
+; republishing and the name goes quiet while the CID underneath still works.
+;_dnslink       IN  TXT   "dnslink=/ipns/<ipns-name>"
+
+; ── 2. The gateway: how a browser that speaks only HTTP gets there ───────────
+;
+; A gateway is a courtesy someone else runs. It is not part of the network, it
+; can disappear without notice, and it can serve you something other than what
+; the CID says — which is exactly why the CID is checkable and why README.md
+; tells readers how to check it. Pick a gateway that resolves DNSLink from the
+; Host header; if it does not, this CNAME serves that gateway's landing page.
+;
+; Candidates, none of them endorsements and all of them worth testing before
+; you publish: dweb.link, ipfs.io, w3s.link, 4everland.io, or your own kubo with
+; `Gateway.PublicGateways` configured for this domain.
+www             IN  CNAME <gateway.example>.
+
+; The apex (the bare domain) cannot hold a CNAME — RFC 1034 forbids a CNAME
+; beside the SOA and NS records that must live there. Two ways out, both from
+; the registrar rather than from this file:
+;   * an ALIAS/ANAME record, if your DNS provider offers one (flattened CNAME);
+;   * an A/AAAA record at the gateway's addresses, which breaks silently when
+;     the gateway renumbers — prefer ALIAS, and prefer neither: send people to
+;     www, or to the CID.
+;<example.org>. IN  ALIAS <gateway.example>.
+
+; ── 3. CAA: who is allowed to issue a certificate for this name ──────────────
+;
+; Without a CAA record, every public CA in the world may issue for this domain,
+; and a name is only as good as the weakest CA that will mint a certificate for
+; it. These three lines cut that set to one.
+;
+; `issue` — the only CA permitted to issue ordinary certificates. Set it to the
+; one your gateway actually uses; a CAA naming a CA you do not use is an outage
+; at the next renewal, not security.
+@               IN  CAA   0 issue "letsencrypt.org"
+
+; `issuewild` with an empty value forbids wildcard certificates outright. A
+; wildcard is one stolen key away from being every subdomain at once, and this
+; zone has no use for one.
+@               IN  CAA   0 issuewild ";"
+
+; `iodef` — where a CA reports a request it refused. Optional, and the only line
+; here that carries a human contact; leave it out rather than publish an address
+; you do not read, because an unread report is worse than none.
+@               IN  CAA   0 iodef "mailto:<security@example.org>"
+
+; ── 4. Nothing else ──────────────────────────────────────────────────────────
+;
+; No MX, no SPF, no DKIM, no DMARC records are included, because this network
+; sends no mail and receives none. If the domain is also a mail domain, keep
+; whatever it already has — but publish SPF/DMARC that REFUSE mail if it is not,
+; since a domain with no mail policy is a domain anyone may forge:
+;@              IN  TXT   "v=spf1 -all"
+;_dmarc         IN  TXT   "v=DMARC1; p=reject; rua=mailto:<security@example.org>"
+
+; Verify the record actually landed, from a machine that is not yours:
+;   dig +short TXT _dnslink.<example.org> @1.1.1.1
+;   curl -sI https://<example.org>/ | grep -i x-ipfs-path

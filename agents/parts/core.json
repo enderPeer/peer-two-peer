@@ -1,0 +1,139 @@
+{
+  "name": "core",
+  "title": "The one rulebook — pure, isomorphic, dependency-free",
+  "summary": "Every number in this network — balances, feeds, earnings, pool reserves, capacity payouts — is a pure function of the act log, and this part is that function. The server, the browser and the chain builder import the same file; none of them may fork it, and none of them may accept an act that replay would skip.",
+  "owns": [
+    "core/replay.mjs",
+    "core/params.mjs",
+    "core/canonical.mjs",
+    "core/merkle.mjs",
+    "core/errors.mjs",
+    "core/placement.mjs",
+    "test/replay.test.mjs",
+    "test/one-rulebook.test.mjs",
+    "test/sybil.test.mjs",
+    "test/wall.test.mjs",
+    "test/hostile-acts.test.mjs",
+    "test/canonical.test.mjs",
+    "test/merkle.test.mjs",
+    "test/placement.test.mjs",
+    "test/helpers/**",
+    "test/README.md",
+    "core/README.md"
+  ],
+  "dependsOn": ["economics"],
+  "interfaces": [
+    "core/replay.mjs  export const EDITION",
+    "core/replay.mjs  export function emptyWorld(params): World",
+    "core/replay.mjs  export function applyAct(world, act): { ok: true } | { ok: false, code, msg, next }",
+    "core/replay.mjs  export function replay(acts, params): World",
+    "core/replay.mjs  export function actError(world, act): null | { code, msg, next }"
+  ],
+  "checks": [
+    {
+      "name": "replay is total and pure",
+      "run": "node --test test/replay.test.mjs",
+      "why": "An act that does not validate must be skipped whole, no clock or network may be consulted, and the world must be identical whether it was replayed in one pass or resumed. Billable views, the post lifecycle and the epoch close are all in here, because all three are properties of replay rather than of a module of their own."
+    },
+    {
+      "name": "one rulebook, three readers",
+      "run": "node --test test/one-rulebook.test.mjs",
+      "why": "Rule 2. Server, browser and chain builder must receive the identical module object, EDITION must be the sha256 of the file on disk, and the host must refuse exactly what actError refuses. A forked copy is two networks that agree until they do not."
+    },
+    {
+      "name": "hostile acts",
+      "run": "node --test test/hostile-acts.test.mjs",
+      "why": "Negative amounts, Infinity, NaN, overdrafts, self-paired swaps and duplicate indices fired straight at applyAct, with the whole world encoded before and after each one. Every refusal is checked against core/errors.mjs, because a code outside the catalogue is a refusal a bot cannot branch on."
+    },
+    {
+      "name": "weight is linear in burn",
+      "run": "node --test test/sybil.test.mjs",
+      "why": "Rule 4. A stake split across twenty puppets must weigh exactly what one account holding it weighs, and the measured sybil recovery must stay where docs/ECONOMICS.md says it does."
+    },
+    {
+      "name": "money never buys reach",
+      "run": "node --test test/wall.test.mjs",
+      "why": "Rule 5. Two worlds identical but for one account's fortune must rank identically, and no balance, burn total or fee volume may appear inside a ranking function at all."
+    },
+    {
+      "name": "canonical json and merkle",
+      "run": "node --test test/canonical.test.mjs test/merkle.test.mjs",
+      "why": "Two verifiers either match bits or can attribute the difference. There is no third outcome."
+    },
+    {
+      "name": "placement",
+      "run": "node --test test/placement.test.mjs",
+      "why": "Rendezvous placement must be a pure function of the live node set, so a browser node and a server node agree with no coordinator."
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "Replay never consults a clock, a network or a random source. Anything time-dependent happens because an act landed carrying a timestamp, never because time passed while somebody was reading.",
+      "heldBy": "test/replay.test.mjs :: \"replay never consults a clock, the network or a random source\""
+    },
+    {
+      "statement": "applyAct is total. A rejected act leaves the world identical in content to the world before it, and no number ever becomes NaN.",
+      "heldBy": "test/hostile-acts.test.mjs :: \"nothing above changed the world, and the world still encodes\" — the whole world is encoded canonically before and after every hostile act, and the encoder refuses non-finite numbers, so a NaN that reached the world throws rather than slipping past as null"
+    },
+    {
+      "statement": "Balances, reserves, supply and prices are BigInt end to end. No Number ever lands in one.",
+      "heldBy": "test/replay.test.mjs :: \"every balance in the world is a bigint after a long replay\""
+    },
+    {
+      "statement": "The world after replaying acts 1..n is identical whether replayed in one pass or resumed from a snapshot. Replay is deterministic and order-dependent only on act index.",
+      "heldBy": "test/replay.test.mjs :: \"replay is deterministic, and resuming is the same as replaying\""
+    },
+    {
+      "statement": "Weight is linear in PTP destroyed — never in account count, never in balance. Twenty puppets sharing a stake weigh what one account holding it weighs, exactly.",
+      "heldBy": "test/sybil.test.mjs :: \"a stake split across twenty puppets returns exactly what one account returns\""
+    },
+    {
+      "statement": "Money never buys reach. No balance, no burn total and no fee volume enters a feed score or a rank, and nothing enters a distribution weight beyond the burn that produced it.",
+      "heldBy": "test/wall.test.mjs :: \"a token millionaire ranks exactly where a pauper does\""
+    },
+    {
+      "statement": "core/replay.mjs is one module instance, shared by the server, the browser and the chain builder. It is never forked, and no second file defines actError or applyAct.",
+      "heldBy": "test/one-rulebook.test.mjs :: \"the rulebook is never forked: one file, one definition of each rule\""
+    },
+    {
+      "statement": "EDITION is the sha256 of core/replay.mjs as it sits on disk, self-reported, so a block can name the formula edition that computed it.",
+      "heldBy": "test/one-rulebook.test.mjs :: \"EDITION is the sha256 of core/replay.mjs as it sits on disk\""
+    },
+    {
+      "statement": "A view is billable only when it met the viewport share, the dwell, the cooldown and the per-pair cap — and the viewer pays the full price every time while the creator's credit does not decay.",
+      "heldBy": "test/replay.test.mjs :: \"the viewer pays full price every time, and the credit does not decay\""
+    },
+    {
+      "statement": "A post publishes, extends, lapses and settles as acts. Settlement pays the wei that arrived rather than a euro amount reconverted, redacts the payload, and moves no balance during redaction.",
+      "heldBy": "test/replay.test.mjs :: \"a lapsed post settles once, pays, redacts and tombstones\""
+    },
+    {
+      "statement": "Every refusal carries a stable code from core/errors.mjs plus msg, why and next, so a bot never parses a sentence to learn what happened. Codes are API; rewording a message is free, changing a code is not.",
+      "heldBy": "test/hostile-acts.test.mjs :: \"a refused act does not advance the log, the epoch or an account\" — every case in that file asserts the code is in the catalogue and that all four fields are non-empty"
+    }
+  ],
+  "brief": {
+    "mission": "Write the function the whole network is a projection of. It is imported by a node server, a browser and an offline verifier, so it may touch nothing that only one of them has: no node: builtins beyond node:crypto used through a shim, no DOM, no fs, no network, no clock. It is the only file in this repository where a mistake is not a bug but a different network.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 0, 4, 5, 6, 7 — the five rules, the act table, the World shape, the post lifecycle, capacity",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/errors.mjs — the refusal catalogue pattern, read for register not for content",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain/ — canonical encoding and merkle, prior art, read-only"
+    ],
+    "rules": [
+      "core/canonical.mjs, core/merkle.mjs, core/errors.mjs, core/placement.mjs and core/params.mjs have no signature fixed by ARCHITECTURE. You choose their exports — but once chosen they are contract, so name them plainly and list them at the top of the file, because five other parts import them.",
+      "actError is the validator both readers use. The server calls it before appending; the browser calls it before offering a button. The refusal sentence is identical in both places because it is the same line of code.",
+      "Every act is signed with the account's wallet key (EIP-191 personal_sign over the canonical act body minus sig). There are no PINs, no passwords and no server-held secrets. Verification belongs to the server, but the canonical body that gets signed is defined here.",
+      "Canonical text is read back with parseCanonical from core/canonical.mjs, never with a bare JSON.parse. A log written canonically and read with JSON.parse loses the bigint sigil, and that is a rule 2 break wearing a parser's clothes."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs core is green",
+      "server, app and chain all import core/replay.mjs unmodified and none of them re-implements a rule",
+      "every exported function has a comment saying what it does and why it is shaped that way"
+    ],
+    "traps": [
+      "A rejected act must not leave a half-written account object behind. Validate fully, then mutate — or mutate a draft and commit it only on success.",
+      "JSON.parse of a big integer silently loses precision. Amounts arrive as decimal strings and become BigInt at the boundary; never as Number.",
+      "Post expiry is not a timer. It is a state read from the timestamp of the act being applied, so two machines replaying the same log at different times get the same world."
+    ]
+  }
+}

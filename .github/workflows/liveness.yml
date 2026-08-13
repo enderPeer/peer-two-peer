@@ -1,0 +1,209 @@
+# Is anybody home?
+#
+# A watchdog that runs on the host dies with the host. This one runs on
+# GitHub's machines instead: every fifteen minutes it asks each published host
+# whether it is answering, records which one holds the pen and how long its
+# record is, and repoints the app's address book at a host that is up. When
+# none answer it writes an empty address ON PURPOSE, so the app goes straight
+# to the archive published beside it — a working read-only network — instead of
+# waiting out a timeout on a corpse. The link is never dead.
+#
+# It needs no secrets and no account beyond this repository: the built-in token
+# can write to gh-pages, which is the only thing it touches. Set the repository
+# variable PTP_HOSTS (comma-separated URLs) to seed the address book on a fresh
+# fork; after that host.json remembers every address it has ever named.
+#
+# It never invents a host, never touches the record, and never PICKS the
+# writer. Which host may accept acts is decided by the hosts themselves
+# (server/chain/election.mjs) from evidence they can produce; this only reports
+# where to knock, and what the hosts said about themselves when asked.
+#
+# NOTE: GitHub disables scheduled workflows in a public repository after 60
+# days without commits. If this repo goes quiet for two months, push anything
+# (or press "Run workflow") to wake it up again.
+name: liveness
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: liveness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Only the two small files this job touches. The branch also carries the
+      # media archive, and pulling that every quarter hour to read one JSON
+      # file would be rude to everyone.
+      - name: Check out the published address book
+        id: book
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          sparse-checkout: |
+            host.json
+            status.json
+          sparse-checkout-cone-mode: false
+
+      - name: A fork with nothing published yet is invited, not broken
+        if: steps.book.outcome != 'success'
+        run: |
+          echo "There is no gh-pages branch on this repository yet, so there is no"
+          echo "address book to keep. Publish app/ to that branch once — it is static"
+          echo "files and needs no build step — then set the repository variable"
+          echo "PTP_HOSTS to the hosts to probe."
+          echo "This run is green: nothing is broken, there is simply nothing to do."
+
+      - name: Check out the checker
+        if: steps.book.outcome == 'success'
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - uses: actions/setup-node@v4
+        if: steps.book.outcome == 'success'
+        with:
+          node-version: '22'
+
+      # ops/liveness.mjs is the real prober and the chain part owns it. Until
+      # it exists this job carries its own, so the address book is kept from
+      # the first day rather than from the day somebody remembers to write the
+      # script. The fallback is the floor, not the ceiling: same command line,
+      # same two files, fewer opinions.
+      - name: Probe the hosts
+        if: steps.book.outcome == 'success'
+        env:
+          PTP_HOSTS: ${{ vars.PTP_HOSTS }}
+        run: |
+          script=src/ops/liveness.mjs
+          if [ ! -f "$script" ]; then
+            echo "ops/liveness.mjs does not exist yet — using the fallback carried in this workflow"
+            script="$RUNNER_TEMP/liveness.mjs"
+            cat > "$script" <<'FALLBACK'
+          // Probe every host the site has ever named and repoint host.json at one that
+          // is answering. Never invents a host, never touches the record.
+          import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+          import { join, resolve } from 'node:path';
+
+          const arg = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : d; };
+          const DIR = resolve(arg('--dir', '.'));
+          const TIMEOUT = Math.max(2000, Number(arg('--timeout', '8000')));
+          const clean = (u) => String(u || '').trim().replace(/\/+$/, '');
+          const isHttp = (u) => /^https?:\/\/[^\s]+$/i.test(u);
+          const num = (...v) => { for (const x of v) if (Number.isFinite(Number(x))) return Number(x); return null; };
+
+          async function get(base, path) {
+            const r = await fetch(base + path, { signal: AbortSignal.timeout(TIMEOUT), headers: { 'user-agent': 'ptp-liveness/1' } });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const t = await r.text();
+            if (t.length > 4000000) throw new Error('response too large');
+            return JSON.parse(t);
+          }
+
+          async function probe(url) {
+            const o = { url, live: false, writer: false, chain: null, epoch: null, acts: null, error: null };
+            try {
+              const head = await get(url, '/api/chain/head');
+              o.live = true;
+              o.chain = num(head.height, head.chainHeight, head.n);
+              o.epoch = num(head.epoch, head.e);
+            } catch (e) {
+              // A host with no sealed epoch yet is still a host. /api/v1 is the
+              // self-describing contract every host serves from its first minute.
+              try { await get(url, '/api/v1'); o.live = true; }
+              catch { o.error = String((e && e.message) || e).slice(0, 200); return o; }
+            }
+            try { const a = await get(url, '/api/v1/acts?limit=0'); o.acts = num(a.total, a.count, a.n); } catch {}
+            try { const e = await get(url, '/api/election'); o.writer = !!(e.writer ?? (!e.primary && !e.quarantine)); } catch {}
+            return o;
+          }
+
+          if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true });
+          const hostPath = join(DIR, 'host.json');
+          const cfg = existsSync(hostPath) ? JSON.parse(readFileSync(hostPath, 'utf8')) : {};
+
+          const candidates = [...new Set([
+            ...(Array.isArray(cfg.candidates) ? cfg.candidates : []),
+            ...(Array.isArray(cfg.urls) ? cfg.urls : []),
+            cfg.url,
+            ...String(process.env.PTP_HOSTS || '').split(/[,\s]+/),
+          ].map(clean).filter(isHttp))];
+
+          const results = candidates.length ? await Promise.all(candidates.map(probe)) : [];
+          for (const r of results) {
+            console.log((r.live ? 'LIVE ' : 'down ') + r.url +
+              (r.live ? '  chain ' + (r.chain ?? '?') + ', acts ' + (r.acts ?? '?') + (r.writer ? ', holds the pen' : '') : '  ' + r.error));
+          }
+
+          // Walk-order for the app: a host that accepts acts first, then live mirrors,
+          // longest record before shortest — the same ordering the hosts use among
+          // themselves, so the address book and the election cannot disagree about who
+          // is worth trying first.
+          const live = results.filter((r) => r.live);
+          const ordered = live.slice().sort((a, b) =>
+            (Number(b.writer) - Number(a.writer)) || ((b.chain ?? -1) - (a.chain ?? -1)) || ((b.acts ?? -1) - (a.acts ?? -1))
+          ).map((r) => r.url);
+
+          const checked = new Date().toISOString();
+          const next = { ...cfg };
+          next.url = ordered[0] || '';
+          if (ordered.length > 1) next.urls = ordered; else delete next.urls;
+          next.candidates = candidates;
+          next.checked = checked;
+          next.checkedBy = 'liveness workflow (.github/workflows/liveness.yml)';
+          next.archive = cfg.archive || 'archive/';
+          if (!ordered.length) {
+            next.note = 'No published host answered at the last check, so this file names none on purpose: the app loads the archive published beside it and runs read-only, rather than waiting out a timeout on a dead address. Every address is kept in `candidates` and restored the moment one answers again.';
+          } else {
+            delete next.note;
+          }
+
+          const writer = live.find((r) => r.writer) || null;
+          const status = {
+            checked,
+            anyLive: ordered.length > 0,
+            writer: writer ? writer.url : null,
+            writerChain: writer ? writer.chain : null,
+            writerActs: writer ? writer.acts : null,
+            hosts: results,
+            note: 'Written every 15 minutes by a scheduled GitHub Action on machines nobody here owns, so it keeps answering when every machine of ours is off. It probes the hosts named in host.json and repoints that file; it never touches the record.',
+          };
+
+          writeFileSync(hostPath, JSON.stringify(next, null, 2) + '\n');
+          writeFileSync(join(DIR, 'status.json'), JSON.stringify(status, null, 2) + '\n');
+          console.log(ordered.length
+            ? 'address book points at ' + next.url + (writer ? ' (pen at ' + writer.url + ', chain ' + (writer.chain ?? '?') + ')' : '')
+            : 'no host answered - the app reads the published archive');
+          FALLBACK
+          fi
+          node "$script" --dir site
+
+      - name: Publish the result
+        if: steps.book.outcome == 'success'
+        working-directory: site
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git config user.name  'ptp-liveness'
+          git config user.email 'liveness@users.noreply.github.com'
+          git add host.json status.json
+          git commit -m "$(node -e "const s=require('./status.json');console.log('Liveness: '+(s.anyLive?((s.writer||'a host')+' answering, chain '+(s.writerChain??'?')):'no host answering - the app reads the published archive'))")"
+          # The archive workflow pushes to this branch too. Rebase rather than
+          # force: its commit knows something this one does not.
+          for i in 1 2 3; do
+            git pull --rebase origin gh-pages && git push origin HEAD:gh-pages && exit 0
+            sleep 5
+          done
+          echo "could not push after 3 tries" >&2
+          exit 1

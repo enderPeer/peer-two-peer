@@ -1,0 +1,80 @@
+# The four things that must be true of every commit.
+#
+#   1. Every source file has exactly one owner.       (agents/run.mjs --ownership)
+#   2. Every claim a manifest makes resolves.         (agents/run.mjs --audit)
+#   3. The whole test suite passes.                   (npm test)
+#   4. The record verifies against the rulebook.      (server/chain/verify.mjs)
+#
+# The second exists because a manifest can go wrong in a way no test catches: it
+# can name a test file that was never written. The gate then goes red for a
+# reason that has nothing to do with the software, or — worse, once somebody
+# deletes the failing check — goes green while the invariant is held by nothing.
+# --audit refuses both, and prints the invariants that really are held by
+# nothing, so every run of this workflow states them rather than hiding them.
+#
+# The fourth is the one worth explaining. The chain does not decide what is
+# true — replay decides — so "verify" means: take the act log, replay it
+# through core/replay.mjs, and check that every root and every signature in
+# every sealed block matches what replay computed. It needs no host, no key of
+# ours and no network, which is exactly why it can run here, on a machine that
+# belongs to somebody else.
+#
+# An empty record verifies. A record with one byte changed does not. data/ is
+# gitignored, so on a clean checkout there is no record and this step verifies
+# nothing and says so — the record that gets verified in anger is the published
+# one, and .github/workflows/archive.yml is where that happens.
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Both manifest gates run before anything is installed, because they must
+      # keep working in a checkout where nothing has been.
+      - name: Ownership gate
+        run: node agents/run.mjs --ownership
+
+      - name: Claims gate — and the list of what is held by nothing
+        run: node agents/run.mjs --audit
+
+      - name: Install the two dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Tests
+        run: npm test
+
+      # Verifies whatever record this checkout carries. With no data/ directory
+      # there is nothing to verify and nothing is wrong, so verify.mjs exits 0
+      # on an empty record — a fresh fork is invited, not broken. It exits
+      # non-zero the moment a sealed block disagrees with the log it came from.
+      - name: Chain verify
+        run: npm run chain:verify
+
+      # Printed last so a red run ends with the table rather than a stack
+      # trace. It never changes the outcome of the job.
+      - name: The fleet, for the log
+        if: always()
+        run: node agents/run.mjs --list

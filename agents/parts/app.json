@@ -1,0 +1,112 @@
+{
+  "name": "app",
+  "title": "The client — mobile-first, black and white, and a storage node",
+  "summary": "Static files that install to a phone: the feed, the meter, the wallet, and the shard store that makes a member's device part of the network's capacity. It validates acts with the same function the server validates them with, so a button that would be refused is never offered.",
+  "owns": [
+    "app/**",
+    "docs/DESIGN.md",
+    "test/client.test.mjs"
+  ],
+  "dependsOn": ["core", "economics", "server"],
+  "interfaces": [
+    "app/index.html   one document, no build step, no bundler, no CDN",
+    "app/app.mjs      the client; imports core/replay.mjs unmodified",
+    "app/wallet.mjs   EIP-191 personal_sign over the canonical body; an injected provider is used and never asked for a key",
+    "app/storage.mjs  the device data-space: OPFS with an IndexedDB fallback; shares core/placement.mjs with the server",
+    "app/sw.js        the service worker: offline shell, and the archive fallback when no host answers",
+    "app/style.css    two colours, system-ui, no web fonts"
+  ],
+  "checks": [
+    {
+      "name": "the client, where it can be tested without a browser",
+      "run": "node --test test/client.test.mjs",
+      "why": "The three things in app/ that can cost a member money or lock them out of an account are pure functions and are driven as such: the billable-view machine, the signing body, and the shard placement. The DOM half needs a browser and a fake one would test the fake, which is stated in the file rather than implied."
+    },
+    {
+      "name": "the client refuses what the writer refuses",
+      "run": "node --test test/one-rulebook.test.mjs",
+      "why": "Rule 2 seen from the user's side. The button is offered exactly when actError returns null, and the refusal sentence is the same one the server would have sent, because it is the same line of code."
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "The app imports core/replay.mjs unmodified and never re-implements a rule. A button appears when actError returns null and not otherwise, and the refusal carries the same four fields the writer would have sent.",
+      "heldBy": "test/client.test.mjs :: \"the client refuses exactly what the writer refuses, with the same sentence\""
+    },
+    {
+      "statement": "A view is only reported as billable when it met the viewport share, the dwell, the cooldown and the per-pair cap. A fling bills literally nothing, and the client never bills optimistically.",
+      "heldBy": "test/client.test.mjs :: \"a fling bills literally nothing, and the gate opens when the scroll settles\""
+    },
+    {
+      "statement": "The per-pair cap holds at twelve billable views in an epoch and there is no thirteenth, and a cooldown survives a reload because the pair ledger is seeded from the world rather than from the tab.",
+      "heldBy": "test/client.test.mjs :: \"the per-pair cap holds: twelve billable views in an epoch, and no thirteenth\""
+    },
+    {
+      "statement": "The client encodes an act exactly as core/canonical.mjs does, and what it signs is the act without sig and without i. A canonical encoding that differs from the writer's by one byte recovers to a different address, and the refusal says nothing about which byte.",
+      "heldBy": "test/client.test.mjs :: \"the client encodes an act exactly as core/canonical.mjs does\""
+    },
+    {
+      "statement": "Signing happens in the user's wallet. The app never holds a private key it was not handed, never asks for a seed phrase, and uses an injected provider through EIP-1193 without ever asking it for a key.",
+      "heldBy": "test/client.test.mjs :: \"an injected provider is used through EIP-1193 and never asked for a key\""
+    },
+    {
+      "statement": "Shard placement agrees with core/placement.mjs shard for shard, a shard this node was not assigned is refused rather than stored, and a challenge is answered out of the bytes actually held.",
+      "heldBy": "test/client.test.mjs :: \"storage placement agrees with core/placement.mjs, shard for shard\""
+    },
+    {
+      "statement": "Nothing is stored or served while the connection may be metered. At 5 EUR/GB serving costs 3,255x what it earns, so the client refuses it by default rather than warning about it.",
+      "heldBy": "test/client.test.mjs :: \"nothing is stored while the connection may be metered\""
+    },
+    {
+      "statement": "The running session total is the sum of what was actually billed, in integers, and a euro typed in is the euro printed out to the nanoeuro. A network that bills per impression and hides the meter is a trap.",
+      "heldBy": "test/client.test.mjs :: \"the session meter counts what was billed, in integers\""
+    },
+    {
+      "statement": "Money never buys reach in the feed the client builds: no balance enters the rank.",
+      "heldBy": "test/client.test.mjs :: \"rule 5: no balance enters the feed score\""
+    },
+    {
+      "statement": "The client states no economic number core/params.mjs already exports, and reads its view thresholds from a params edition rather than from itself. A threshold that lives in the client is a threshold two readers can disagree about.",
+      "heldBy": "test/client.test.mjs :: \"the client states no economic number core/params.mjs already exports\""
+    },
+    {
+      "statement": "Nothing loads from a third-party origin: no web fonts, no CDN, no icon fonts, no telemetry. The app works with the network cable pulled.",
+      "heldBy": "test/client.test.mjs :: \"the client loads nothing from anybody else\" — every absolute URL in app/*.mjs is scanned, and the only ones permitted are placeholders inside prose"
+    },
+    {
+      "statement": "A device clock a little behind the log does not refuse a user their own act. The stamp is clamped to the last accepted act and the writer assigns the real one, so nobody is refused because of a wristwatch.",
+      "heldBy": "test/client.test.mjs :: \"a clock a little behind the log does not refuse the user their own act\""
+    }
+  ],
+  "open": [
+    {
+      "statement": "Every picture reserves its aspect-ratio from the act before the bytes arrive, prefers-reduced-motion removes every transition, and a full scroll of fifty pictures holds 60 fps.",
+      "why": "All three are properties of the DOM half of app/app.mjs, app/index.html and app/style.css. test/client.test.mjs deliberately tests only the pure functions and says so, because a fake DOM tests the fake. These need a real browser — a headless run driving the built page — and this repository has no browser in its toolchain and no dependency budget for one."
+    }
+  ],
+  "brief": {
+    "mission": "Build the network's face: a centred column of phone width, the same on a desktop, in ink and paper with no third colour. The pictures are the only colour on the screen and the interface is the frame. Prices are always in euros, always visible, and the session total sits in the header where a reader can see what the scroll is costing.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 3, 4, 6, 7, 11 — euro pricing, the act table, the post lifecycle, capacity, the design",
+      "core/replay.mjs and core/errors.mjs — you validate with them, you do not re-derive them"
+    ],
+    "rules": [
+      "No build step and no bundler. index.html plus ES modules the browser loads directly, so what is published is what was written.",
+      "Ask for persistent storage with navigator.storage.persist() and degrade honestly when it is refused: say the device is not holding shards rather than pretending it is.",
+      "Two colours: ink #000, paper #FFF. Grey only for disabled states and hairlines.",
+      "60 fps scroll: content-visibility: auto, images decoded off-thread, no layout shift, momentum that does not fight the platform.",
+      "Every economic number comes from core/params.mjs. A constant retyped into the client is a second edition of the economy."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs app is green",
+      "the app loads from a file:// checkout and from a static host with no server at all, and says plainly that it is read-only",
+      "a full scroll of fifty pictures holds 60 fps on a mid-range phone"
+    ],
+    "traps": [
+      "An IntersectionObserver that fires on every frame will bill a scroll. The dwell timer starts when the threshold is crossed and is cancelled when it is uncrossed — and the act is only sent when the timer completes.",
+      "OPFS is unavailable in private browsing on some platforms. Fall back to IndexedDB, and if that fails too, say the device is not a storage node instead of failing silently.",
+      "Signing happens in the user's wallet. The app never holds a private key, never asks for a seed phrase, and never stores anything that could sign on its own.",
+      "A ranking function that reads a balance is rule 5 broken, and test/wall.test.mjs reads the source of rankScore and feedOrder to check that no money field is even mentioned inside them."
+    ]
+  }
+}

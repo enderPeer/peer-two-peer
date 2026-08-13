@@ -1,0 +1,92 @@
+{
+  "fleetVersion": 1,
+  "network": "Peer two Peer",
+  "node": ">=20.11",
+  "why": "Six parts, six agents, one repository, no coordination between them at build time. The split is written down here so it can be checked mechanically instead of remembered.",
+  "readFirst": [
+    "docs/ARCHITECTURE.md — binding. Every interface in it is a contract between parts.",
+    "docs/AGENTS.md — who the fleet is and what an agent holds itself to.",
+    "agents/parts/<your part>.json — your own manifest: what you own, what you must never break."
+  ],
+  "contract": [
+    "ESM only (.mjs, \"type\": \"module\"). Node >= 20.11.",
+    "Zero new dependencies. Runtime dep is ethers, devDep is solc, node: builtins are free. Do not add to package.json.",
+    "All money, supply, reserve and price arithmetic is BigInt. No float ever touches a balance, a reserve or a price. Floats are permitted only inside weighting math that is immediately quantised back to integers.",
+    "Never write a file outside your own \"owns\" list. Another agent owns the rest and is writing at the same time.",
+    "Implement the interfaces in docs/ARCHITECTURE.md exactly. Do not rename, do not widen a signature, do not add a parameter. If the spec is wrong, report it — do not fix it unilaterally.",
+    "Every exported function carries a comment saying what it does and why it is shaped that way. Comments explain mechanism and reasoning, not syntax.",
+    "Refusals go through core/errors.mjs and carry code, why and fix. Never invent a bare throw with a sentence in it.",
+    "Report honestly. A check you could not make pass is an open issue, not a success."
+  ],
+  "parts": ["core", "economics", "server", "chain", "app", "contracts"],
+  "fleet": {
+    "name": "fleet",
+    "title": "The build fleet itself — manifests, runner, workflows, and the agent documentation",
+    "summary": "Not a part of the software. It owns the files that describe who owns the software, and the scheduled jobs that keep the record alive on machines nobody owns.",
+    "owns": [
+      "agents/**",
+      ".github/**",
+      "docs/ARCHITECTURE.md",
+      "docs/AGENTS.md",
+      "package.json",
+      "package-lock.json",
+      ".gitignore",
+      "README.md",
+      "LICENSE"
+    ],
+    "checks": [
+      {
+        "name": "ownership",
+        "run": "node agents/run.mjs --ownership",
+        "why": "Two agents editing one file is a lost edit. This runs before the build matrix, not after it."
+      },
+      {
+        "name": "manifests parse",
+        "run": "node agents/run.mjs --list",
+        "why": "A manifest that does not parse cannot be acted on by an agent working alone, which is the only way any of these files get written."
+      },
+      {
+        "name": "claims resolve",
+        "run": "node agents/run.mjs --audit",
+        "why": "Every command a check runs must name a file that exists, and every invariant must name a test that is really in the file it points at. This manifest once named twenty-one test files that had never been written; the gate went red for tests that did not exist while the invariants they claimed to hold were held by other files nobody had pointed at."
+      },
+      {
+        "name": "matrix emits",
+        "run": "node agents/run.mjs --matrix",
+        "why": ".github/workflows/agents.yml fans out over this JSON. If it stops emitting, CI silently runs nothing."
+      }
+    ],
+    "invariants": [
+      {
+        "statement": "Every source file in the repository is claimed by exactly one owner. Not zero, not two.",
+        "heldBy": "node agents/run.mjs --ownership"
+      },
+      {
+        "statement": "Every check names a command a fresh checkout can run, and every invariant names a test that exists by title in the file it points at. A manifest that names a test that is not there is not a stricter manifest; it is one nobody can act on.",
+        "heldBy": "node agents/run.mjs --audit"
+      },
+      {
+        "statement": "An invariant a part states and nothing holds is declared open with a reason, never deleted and never disguised as a passing check. Every command here prints the open list in full.",
+        "heldBy": "node agents/run.mjs --audit — a part's \"open\" entries must each carry a statement and a reason, and loadFleet refuses the manifest otherwise"
+      },
+      {
+        "statement": "A check whose toolchain is absent is reported SKIP and never PASS, and CI runs the gate with --no-skip after installing, so a skip cannot become permanent by accident.",
+        "heldBy": ".github/workflows/agents.yml — the part matrix installs the dependencies and then runs node agents/run.mjs <part> --no-skip"
+      },
+      {
+        "statement": "A part's declared checks are shell commands that a fresh checkout can run. No hidden state, no machine of ours.",
+        "heldBy": ".github/workflows/agents.yml — the matrix runs each one on a clean GitHub runner"
+      }
+    ]
+  },
+  "ignore": [
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/*.tmp",
+    "coverage/**",
+    ".vscode/**",
+    ".idea/**",
+    "scratch/**",
+    "site/**"
+  ]
+}

@@ -1,0 +1,133 @@
+# The fan-out: one job per part of the software, on machines nobody owns.
+#
+# Six agents write this repository at the same time and never see each other.
+# What keeps that from being six people editing one file is agents/manifest.json
+# plus agents/parts/*.json, and the ownership job below is the thing that reads
+# it back. It runs FIRST and it blocks the matrix, because a build matrix over a
+# repository where two parts claim the same file is six wasted jobs and one lost
+# edit.
+#
+# The matrix itself is generated from the manifests — `node agents/run.mjs
+# --matrix` prints the job list — so adding agents/parts/<name>.json adds a CI
+# job and nothing here has to be touched. The runner refuses to load a manifest
+# that names a part file which does not exist, so the matrix can only ever fan
+# out over parts that are really there.
+#
+# The gate job runs --audit next to --ownership, and that pairing is deliberate.
+# Ownership answers "can two agents collide?"; audit answers "does this manifest
+# describe the repository that is actually here?" Both are questions about the
+# manifests rather than about the software, both need no install, and both have
+# to be answered before six machines start building on the answer. This manifest
+# once named twenty-one test files that had never been written, and every one of
+# them was a check the matrix ran and failed.
+#
+# The four checks the fleet declares for itself are all run here: --ownership,
+# --audit, --list and --matrix. The fleet is therefore not a row in the matrix,
+# because it is the thing the matrix is generated from.
+#
+# NOTE: GitHub disables scheduled workflows in a public repository after 60 days
+# without commits. If this repo goes quiet for two months, push anything (or
+# press "Run workflow") to wake it up again.
+name: agents
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The gate that keeps parallel agents from colliding. Nothing else runs
+  # until it is green.
+  ownership:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.fan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No install: the runner is node: builtins only, on purpose, so these
+      # checks work in a checkout where nothing has been installed and
+      # nothing has been built.
+      - name: No file with two owners, and no file with none
+        run: node agents/run.mjs --ownership
+
+      # Every check must run a file that exists, and every invariant must name a
+      # test that is really in the file it points at. This also prints the open
+      # list — the invariants a part states and nothing holds — so every run of
+      # this workflow says out loud what is not being checked.
+      - name: Every claim names something that exists
+        run: node agents/run.mjs --audit
+
+      - name: The fleet, and what each part owns
+        run: node agents/run.mjs --list
+
+      - name: Read the fleet back as a job matrix
+        id: fan
+        run: echo "matrix=$(node agents/run.mjs --matrix)" >> "$GITHUB_OUTPUT"
+
+  part:
+    needs: ownership
+    runs-on: ubuntu-latest
+    strategy:
+      # Every part reports for itself. One red part must not hide the state
+      # of the other five — the whole point of the table is knowing which.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.ownership.outputs.matrix) }}
+    name: ${{ matrix.part }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # There is no committed lockfile yet, and `npm ci` refuses without one.
+      # Prefer it the moment one exists; fall back to install until then.
+      - name: Install the two dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: What this part is supposed to hold
+        run: node agents/run.mjs --plan ${{ matrix.part }}
+
+      # --no-skip is what makes this the real run. A check that declares a
+      # toolchain it needs — `contracts compile` needs solc — is reported SKIP
+      # on a machine that does not have it, and is never counted as a pass. Here
+      # the install above has put it there, so a skip would mean the install
+      # failed, and that is a failure rather than a shrug.
+      - name: Run its checks
+        run: node agents/run.mjs ${{ matrix.part }} --no-skip
+
+  # One job to require in branch protection. It is green only when every part
+  # is, and it says which one was not.
+  gate:
+    needs: [ownership, part]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          echo "ownership: ${{ needs.ownership.result }}"
+          echo "parts:     ${{ needs.part.result }}"
+          if [ "${{ needs.ownership.result }}" != "success" ] || [ "${{ needs.part.result }}" != "success" ]; then
+            echo "::error::the fleet is red — open the matrix jobs above, each one names its own failing check"
+            exit 1
+          fi
+          echo "the fleet is green"

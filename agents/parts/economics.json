@@ -1,0 +1,142 @@
+{
+  "name": "economics",
+  "title": "The pool, the euro price surface, and the distribution rules",
+  "summary": "One constant-product market against BTC, one fused rational from nanoeuros to PTP wei, and the swappable module that turns each epoch's burn into a per-creator rebate. This is where every integer that decides who gets paid is computed, so it is all BigInt and all truncating in a stated direction.",
+  "owns": [
+    "core/amm.mjs",
+    "core/pricing.mjs",
+    "core/rules/**",
+    "docs/ECONOMICS.md",
+    "test/amm.test.mjs",
+    "test/pricing.test.mjs"
+  ],
+  "dependsOn": ["core"],
+  "interfaces": [
+    "core/amm.mjs  export const FEE_BPS",
+    "core/amm.mjs  export function amountOut(amountIn, reserveIn, reserveOut, feeBps): bigint",
+    "core/amm.mjs  export function amountIn(amountOut, reserveIn, reserveOut, feeBps): bigint",
+    "core/amm.mjs  export function spotSatPerPtp(pool): bigint   // scaled 1e18",
+    "core/amm.mjs  export function quote(pool, side, amount, feeBps): { out, priceImpactBps, newPool }",
+    "core/amm.mjs  export function addLiquidity(pool, satIn, ptpIn): { shares, used, newPool }",
+    "core/amm.mjs  export function removeLiquidity(pool, shares): { sat, ptp, newPool }",
+    "core/pricing.mjs  export function nanoEurToPtpWei(nanoEur, rate): bigint   // the fused rational; never two hops",
+    "core/pricing.mjs  export function ptpWeiToNanoEur(wei, rate): bigint",
+    "core/pricing.mjs  export function splitFee(ptpWei, vector): { creator, burn, capacity, treasury }",
+    "core/pricing.mjs  export function sealRate(pool, oracle): Rate   // accepts a bigint or its canonical decimal string, never a Number",
+    "core/pricing.mjs  export function formatEur(nanoEur): string",
+    "core/rules/v1.mjs  export const VERSION = \"v1\"",
+    "core/rules/v1.mjs  export function credit(world, epochActs): Map<address, bigint>   // credited burn wei per creator"
+  ],
+  "checks": [
+    {
+      "name": "amm arithmetic",
+      "run": "node --test test/amm.test.mjs",
+      "why": "Uniswap-V2 in BigInt, truncating. k must grow on every swap; a swap that shrinks k pays the trader out of the liquidity providers' pocket."
+    },
+    {
+      "name": "the fused price surface",
+      "run": "node --test test/pricing.test.mjs",
+      "why": "One rational, one truncation, at the end. The two-hop rope returns zero wei for every sub-satoshi price in this economy at every token price, and a price that silently becomes free is a sybil faucet."
+    },
+    {
+      "name": "the sybil inequality",
+      "run": "node --test test/sybil.test.mjs",
+      "why": "The measured claim docs/ECONOMICS.md rests on: a self-dealing loop recovers 6520 bps and loses the rest, at every DAU and every price. The file lives with core because it drives replay, and it is named here because it is what holds this part's central number."
+    },
+    {
+      "name": "the epoch, end to end",
+      "run": "node --test test/replay.test.mjs",
+      "why": "Emission, the four-way split, the capacity pot and the rule key are properties of a closed epoch rather than of a module, so this is where the distribution rules are actually exercised. Run it whenever core/rules/*.mjs or core/pricing.mjs changes."
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "No float ever touches a reserve, a balance or a price. Every return of core/amm.mjs is a bigint, and every input that is not one is refused rather than coerced.",
+      "heldBy": "test/amm.test.mjs :: \"every zero, negative, oversized and malformed input is refused\""
+    },
+    {
+      "statement": "k grows on every swap. That growth is the liquidity providers' pay, and it is the only pay they get.",
+      "heldBy": "test/amm.test.mjs :: \"k never decreases across a swap, in either direction\""
+    },
+    {
+      "statement": "MINIMUM_LIQUIDITY shares are locked forever at genesis, so the pool can never be drained to zero.",
+      "heldBy": "test/amm.test.mjs :: \"a swap can thin a reserve but never empty it\""
+    },
+    {
+      "statement": "Adding liquidity takes only the proportional part of an offer, so a skewed deposit cannot mint shares against existing providers.",
+      "heldBy": "test/amm.test.mjs :: \"adding liquidity takes only the proportional part of a skewed offer\""
+    },
+    {
+      "statement": "nanoEurToPtpWei is one fused rational and never two hops, and it never returns 0n for a non-zero price. If truncation would reach zero it returns 1n and the caller records a dust flag. A price that silently becomes free is a free view, and a free view is a sybil faucet.",
+      "heldBy": "test/pricing.test.mjs :: \"the underflow rule: a non-zero price never becomes free\""
+    },
+    {
+      "statement": "The rate a fee prices against is the epoch's sealed pair, not a live pool spot. A live spot hands an attacker a weight-per-euro advantage of 10 on a 90% self-created dip.",
+      "heldBy": "test/pricing.test.mjs :: \"a sealed rate is frozen, so an epoch cannot be repriced under a reader\""
+    },
+    {
+      "statement": "splitFee conserves to the wei at every price and in both vectors, the remainder goes to burn and never to a payout, and a vector that does not sum to 10000 is refused rather than scaled.",
+      "heldBy": "test/pricing.test.mjs :: \"splitFee conserves to the wei, at every price and in both vectors\""
+    },
+    {
+      "statement": "The publish fee has no creator leg: a poster may not pay themselves, so the three remaining legs are renormalised over a base of 6000.",
+      "heldBy": "test/pricing.test.mjs :: \"the publish vector pays no creator, and both vectors sum to 10000\""
+    },
+    {
+      "statement": "formatEur never rounds a non-zero price to \"0 EUR\", and refuses a Number outright. A meter that reads zero while it bills is a trap.",
+      "heldBy": "test/pricing.test.mjs :: \"formatEur never shows a false zero\""
+    },
+    {
+      "statement": "Emission is a per-creator rebate on burn actually caused, never a pot divided by weight. A creator's rebate never depends on anybody else's credited burn, so nobody competes for anybody else's emission.",
+      "heldBy": "test/sybil.test.mjs :: \"the rail scales everybody by the same fraction, so growing does not pay\""
+    },
+    {
+      "statement": "An epoch that burned nothing emits nothing, and unemitted PTP is forfeited rather than carried forward. A pot that outlives the epoch that funded it is the flat rule wearing a different name.",
+      "heldBy": "test/replay.test.mjs :: \"an epoch that burned nothing emits nothing\""
+    },
+    {
+      "statement": "Self-engagement never counts, in every version of the rules.",
+      "heldBy": "test/replay.test.mjs :: \"self-engagement is refused, so it can never be credited\""
+    },
+    {
+      "statement": "A closed epoch is never re-cut. rulesSet only takes effect for fromEpoch > world.epoch.n, and the rule key can change nothing but the division of the emission.",
+      "heldBy": "test/replay.test.mjs :: \"the rule key cannot mint, move a balance or touch the pool\""
+    },
+    {
+      "statement": "Pro-rata division of the capacity pot pays out exactly what was debited: three nodes doing identical work are paid identically in any order, and no post can be drawn past what funded it.",
+      "heldBy": "test/replay.test.mjs :: \"three nodes doing identical work are paid identically, in any order\""
+    }
+  ],
+  "open": [
+    {
+      "statement": "docs/ECONOMICS.md states every constant in core/params.mjs and agrees with it, value for value.",
+      "why": "Nothing compares the document to the module. The numbers were reconciled by hand at the last edit, and a hand reconciliation is a claim about a moment rather than an invariant. A test that parses the tables in docs/ECONOMICS.md and asserts each row against the export of the same name would close it."
+    }
+  ],
+  "brief": {
+    "mission": "Make the money arithmetic exact and the price surface honest. Every user-visible price is a euro price denominated in nanoeuros; settlement is PTP wei; the bridge between them is one fused rational over the epoch's sealed oracle rate and the epoch's sealed pool ratio. Between epochs the last sealed rate is used, so prices do not move under a user mid-session.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 1, 2, 3, 8 — two assets, the one pool, euro pricing, distribution and the rule key",
+      "docs/ECONOMICS.md in full — it is yours, and every constant in it is load-bearing",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain-l2/PeerPools.sol — the same constant-product arithmetic, already written once, read-only"
+    ],
+    "rules": [
+      "This part and core depend on each other on purpose: replay imports amm and pricing, and pricing imports the params that live in core. The signatures in ARCHITECTURE are what keeps that mutual dependency from being a deadlock — implement them exactly and neither agent has to wait.",
+      "State the truncation direction in a comment at every division. Every charge rounds up and every payout rounds down, so the dust always ends where no account can claim it.",
+      "The conversion is ONE rational: nanoEur x 1e8 x poolPtpWei / (eurPerBtcNano x poolSat), with the intermediate satoshi never materialised. The two-hop form returns zero in twenty cells out of twenty at every price, and that is the whole of the fee economy.",
+      "Every swap carries minOut. A fill at a price the screen never showed is refused, not executed.",
+      "sealRate takes a bigint or its canonical decimal string and never a Number, because the oracle reaches it over JSON and a Number is a different amount."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs economics is green",
+      "core/replay.mjs imports amm and pricing and reimplements nothing",
+      "docs/ECONOMICS.md states every constant that appears in core/params.mjs and agrees with it"
+    ],
+    "traps": [
+      "Genesis is 1 000 000 sat against 10 000 PTP, so spot is 1 PTP = 100 sat. Get the decimals wrong here — 18 for PTP, 6 for CAP, 0 for satoshis — and every price in the app is off by a factor of a trillion.",
+      "sqrt in BigInt needs Newton's method with an integer guard, not Math.sqrt. Math.sqrt on a 1e18-scale integer loses the low bits silently.",
+      "Pro-rata division of a pot leaves a remainder. Assign it explicitly — to the pot, to the last claimant, to the burn — and test that the sum of payouts equals the amount debited, exactly.",
+      "Any future core/rules/vN.mjs that reintroduces a weight term not linear in PTP burned reopens the honest-user subsidy, and it can ship for a future epoch without touching one number in core/params.mjs. test/sybil.test.mjs is what has to catch it."
+    ]
+  }
+}

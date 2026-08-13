@@ -1,0 +1,312 @@
+# The record keeps itself.
+#
+# Every six hours this pulls the act log, the epoch chain and the pictures from
+# whichever published host answers, replays and VERIFIES the whole record on
+# GitHub's own machines, and republishes it beside the app. No machine of ours
+# is involved: when they are all asleep the archive still tracks the network's
+# last reachable state, and the liveness workflow points readers at exactly the
+# copy this one keeps fresh.
+#
+# A record that fails verification is NEVER published. The run goes red instead
+# and the archive keeps its previous verified state. Stale is honest; wrong is
+# poison. That gate is the whole reason this job exists rather than a cron line
+# that copies files.
+#
+# ── HOW THE GATE IS ACTUALLY HELD ──────────────────────────────────────────
+#
+# Three steps, and the order is the gate:
+#
+#   sync     fetches, verifies, and stages into site/archive. It writes
+#            site/.archive-summary only after the verifier exited 0, and the
+#            step turns the presence of that file into the output `verified`.
+#   re-verify runs server/chain/verify.mjs over site/archive itself — the files
+#            that are about to be committed, not the working copy they were
+#            built from. A staging bug between the two is exactly the class of
+#            mistake a gate on the earlier directory cannot see.
+#   publish  runs only when `verified` is true, so it is gated on a value the
+#            verifier produced rather than on GitHub's implicit "the previous
+#            step did not fail". Implicit is correct today and is one edit away
+#            from not being.
+#
+# Two things it refuses on sight: a blob whose bytes do not hash to the cid it
+# was served under, and a picture the log says was settled — redaction a mirror
+# ignores is not redaction.
+#
+# Needs no secrets: the built-in token can write to gh-pages, which is the only
+# thing it touches.
+#
+# NOTE: GitHub disables scheduled workflows in a public repository after 60
+# days without commits. Push anything (or press "Run workflow") to wake it.
+name: archive
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the source (the verifier and its rulebook)
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      # Full checkout, media included: the sync diffs the blob set against what
+      # the log still references and drops what redaction removed.
+      - name: Check out the published site
+        id: book
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: A fork with nothing published yet is invited, not broken
+        if: steps.book.outcome != 'success'
+        run: |
+          echo "There is no gh-pages branch on this repository yet, so there is"
+          echo "nowhere to publish an archive. Publish the app once, then set the"
+          echo "repository variable PTP_HOSTS to the hosts to pull from."
+          echo "This run is green: nothing is broken, there is simply nothing to do."
+
+      - uses: actions/setup-node@v4
+        if: steps.book.outcome == 'success'
+        with:
+          node-version: '22'
+
+      - name: Install the two dependencies
+        if: steps.book.outcome == 'success'
+        working-directory: src
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      # ops/archive.mjs is the real sync and the chain part owns it. Until it
+      # exists this job carries its own, so the record is mirrored from the
+      # first day. Both take --site and both hold the same gate: verify before
+      # publish, publish nothing that did not verify, and write
+      # site/.archive-summary only once the verifier has exited 0.
+      #
+      # The verifier is called as  node server/chain/verify.mjs --dir <record>
+      # with PTP_DATA_DIR set to the same path. It must exit 0 on a record that
+      # checks out — including an empty one — and non-zero on any mismatch.
+      - name: Pull the record, verify it, and only then stage it
+        id: sync
+        if: steps.book.outcome == 'success'
+        env:
+          PTP_HOSTS: ${{ vars.PTP_HOSTS }}
+        run: |
+          script=src/ops/archive.mjs
+          if [ ! -f "$script" ]; then
+            echo "ops/archive.mjs does not exist yet — using the fallback carried in this workflow"
+            script="$RUNNER_TEMP/archive.mjs"
+            cat > "$script" <<'FALLBACK'
+          // Pull the act log, chain and media from whichever host answers, verify the
+          // whole record, and only then republish it. The gate is the point.
+          import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'node:fs';
+          import { join, resolve } from 'node:path';
+          import { createHash } from 'node:crypto';
+          import { spawnSync } from 'node:child_process';
+
+          const arg = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : d; };
+          const ROOT = resolve(arg('--root', '.'));
+          const SITE = resolve(arg('--site', 'site'));
+          const WORK = resolve(arg('--work', 'fetched'));
+          const TIMEOUT = Math.max(5000, Number(arg('--timeout', '30000')));
+          const MAX_LOG = 64 * 1024 * 1024;
+          const MAX_BLOB = 32 * 1024 * 1024;
+          const MAX_BLOBS_PER_RUN = 400;
+
+          const clean = (u) => String(u || '').trim().replace(/\/+$/, '');
+          const isHttp = (u) => /^https?:\/\/[^\s]+$/i.test(u);
+          const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+          const isHexCid = (c) => /^[0-9a-f]{64}$/.test(String(c || ''));
+
+          async function raw(url, cap) {
+            const r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT), headers: { 'user-agent': 'ptp-archive/1' } });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const b = Buffer.from(await r.arrayBuffer());
+            if (b.length > cap) throw new Error('response exceeds ' + cap + ' bytes');
+            return b;
+          }
+          async function first(base, paths, cap) {
+            let last = null;
+            for (const p of paths) { try { return { path: p, body: await raw(base + p, cap || MAX_LOG) }; } catch (e) { last = e; } }
+            throw last || new Error('no path answered');
+          }
+
+          const hostFile = join(SITE, 'host.json');
+          const cfg = existsSync(hostFile) ? JSON.parse(readFileSync(hostFile, 'utf8')) : {};
+          const hosts = [...new Set([
+            cfg.url,
+            ...(Array.isArray(cfg.urls) ? cfg.urls : []),
+            ...(Array.isArray(cfg.candidates) ? cfg.candidates : []),
+            ...String(process.env.PTP_HOSTS || '').split(/[,\s]+/),
+          ].map(clean).filter(isHttp))];
+
+          if (!hosts.length) { console.log('no host is published yet - nothing to archive, and that is not a failure'); process.exit(0); }
+
+          // Chain first, acts second. An epoch sealing between the two fetches then
+          // leaves the log AHEAD of the chain, which verifies with a warning; the
+          // reverse order hard-fails on a block the fetched log cannot close yet.
+          let host = null, chain = null, acts = null;
+          for (const h of hosts) {
+            try {
+              const c = await first(h, ['/api/chain']);
+              const a = await first(h, ['/api/v1/acts.jsonl', '/api/acts.jsonl', '/acts.jsonl', '/api/v1/log']);
+              host = h; chain = c.body; acts = a.body;
+              console.log('fetched from ' + h + '  chain ' + c.body.length + ' B, acts ' + a.body.length + ' B (' + a.path + ')');
+              break;
+            } catch (e) {
+              console.log('skip ' + h + ': ' + String((e && e.message) || e).slice(0, 120));
+            }
+          }
+          if (!host) { console.log('no published host answered - the archive keeps its previous verified state'); process.exit(0); }
+
+          const actLines = acts.toString('utf8').split(/\r?\n/).filter((l) => l.trim());
+          let blocks = [];
+          try { const c = JSON.parse(chain.toString('utf8')); blocks = Array.isArray(c) ? c : (Array.isArray(c.blocks) ? c.blocks : []); }
+          catch { blocks = chain.toString('utf8').split(/\r?\n/).filter((l) => l.trim()).map((l) => JSON.parse(l)); }
+          console.log(actLines.length + ' acts, ' + blocks.length + ' sealed blocks');
+
+          rmSync(WORK, { recursive: true, force: true });
+          mkdirSync(join(WORK, 'media'), { recursive: true });
+          writeFileSync(join(WORK, 'acts.jsonl'), actLines.join('\n') + '\n');
+          writeFileSync(join(WORK, 'chain.json'), JSON.stringify(blocks) + '\n');
+
+          // A cid IS the sha256 of the bytes, so a host cannot hand a mirror something
+          // else under that name. A picture the log says settled is dropped.
+          const wanted = new Set();
+          for (const line of actLines) {
+            let a; try { a = JSON.parse(line); } catch { continue; }
+            if (a && isHexCid(a.cid) && a.k !== 'settle') wanted.add(a.cid);
+          }
+          for (const line of actLines) {
+            let a; try { a = JSON.parse(line); } catch { continue; }
+            if (a && a.k === 'settle' && isHexCid(a.cid)) wanted.delete(a.cid);
+          }
+          const archiveMedia = join(SITE, 'archive', 'media');
+          const have = existsSync(archiveMedia) ? readdirSync(archiveMedia).filter(isHexCid) : [];
+          const missing = [...wanted].filter((c) => !have.includes(c)).slice(0, MAX_BLOBS_PER_RUN);
+          let got = 0, bad = 0;
+          for (const cid of missing) {
+            try {
+              const { body } = await first(host, ['/media/' + cid, '/api/v1/media/' + cid, '/blob/' + cid], MAX_BLOB);
+              if (sha256(body) !== cid) { bad++; console.log('REFUSED ' + cid + ' - bytes do not hash to their own name'); continue; }
+              writeFileSync(join(WORK, 'media', cid), body);
+              got++;
+            } catch (e) { console.log('missed ' + cid + ': ' + String((e && e.message) || e).slice(0, 80)); }
+          }
+          const dropped = have.filter((c) => !wanted.has(c));
+          console.log('media: ' + wanted.size + ' referenced, ' + have.length + ' already held, ' + got + ' fetched, ' + bad + ' refused, ' + dropped.length + ' redacted');
+
+          const verifier = join(ROOT, 'server', 'chain', 'verify.mjs');
+          if (!existsSync(verifier)) {
+            console.log('server/chain/verify.mjs does not exist yet, so this record cannot be verified.');
+            console.log('Nothing is published. Unverifiable is not the same as wrong, so this run is not red.');
+            process.exit(0);
+          }
+          const v = spawnSync(process.execPath, [verifier, '--dir', WORK], {
+            cwd: ROOT, encoding: 'utf8', env: { ...process.env, PTP_DATA_DIR: WORK }, timeout: 15 * 60 * 1000,
+          });
+          process.stdout.write(v.stdout || '');
+          process.stderr.write(v.stderr || '');
+          if (v.status !== 0) {
+            console.error('VERIFICATION FAILED - nothing published. The archive keeps its previous verified state.');
+            process.exit(1);
+          }
+          console.log('record verified');
+
+          const out = join(SITE, 'archive');
+          rmSync(out, { recursive: true, force: true });
+          mkdirSync(join(out, 'media'), { recursive: true });
+          writeFileSync(join(out, 'acts.jsonl'), readFileSync(join(WORK, 'acts.jsonl')));
+          writeFileSync(join(out, 'chain.json'), readFileSync(join(WORK, 'chain.json')));
+          for (const cid of wanted) {
+            const fresh = join(WORK, 'media', cid);
+            const old = join(archiveMedia, cid);
+            if (existsSync(fresh)) writeFileSync(join(out, 'media', cid), readFileSync(fresh));
+            else if (existsSync(old)) writeFileSync(join(out, 'media', cid), readFileSync(old));
+          }
+          const head = blocks.length ? blocks[blocks.length - 1] : null;
+          writeFileSync(join(out, 'manifest.json'), JSON.stringify({
+            at: new Date().toISOString(),
+            from: host,
+            acts: actLines.length,
+            blocks: blocks.length,
+            head: head ? { height: head.height, epoch: head.epoch, stateRoot: head.stateRoot, producer: head.producer } : null,
+            media: wanted.size,
+            verifiedBy: 'server/chain/verify.mjs, run on a GitHub runner by .github/workflows/archive.yml',
+            note: 'A read-only copy of the whole record. Replay it yourself: the numbers come out of core/replay.mjs, not out of this file.',
+          }, null, 2) + '\n');
+          writeFileSync(join(SITE, '.archive-summary'),
+            'Archive: ' + actLines.length + ' acts, ' + blocks.length + ' blocks, ' + wanted.size + ' pictures, verified from ' + host);
+          console.log('published: ' + actLines.length + ' acts, ' + blocks.length + ' blocks, ' + wanted.size + ' pictures');
+          FALLBACK
+          fi
+          node "$script" --root src --site site --work "$RUNNER_TEMP/record"
+
+          # The summary file is written by the sync as its LAST act, after the
+          # verifier exited 0 and after site/archive was rewritten. Its presence
+          # is therefore the one fact that means "a verified record is staged",
+          # and it is what the publish step is gated on. No file, no publish —
+          # which is also the correct outcome when no host answered at all.
+          if [ -f site/.archive-summary ]; then
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+            echo "a verified record is staged in site/archive"
+          else
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+            echo "nothing staged: either no host answered, or the record did not verify."
+            echo "The archive keeps its previous verified state. This is not a failure."
+          fi
+
+      # The gate again, over the files that are actually about to be committed.
+      # The step above verified a working directory and then copied it here; this
+      # one verifies the copy. A staging bug between the two — a blob dropped, a
+      # line truncated on the way out — is invisible to a check that only ever
+      # looked at the input.
+      - name: Verify the staged archive, from the files about to be committed
+        if: steps.book.outcome == 'success' && steps.sync.outputs.verified == 'true'
+        env:
+          PTP_DATA_DIR: ${{ github.workspace }}/site/archive
+        run: node src/server/chain/verify.mjs --dir site/archive
+
+      - name: Publish the refreshed archive
+        if: steps.book.outcome == 'success' && steps.sync.outputs.verified == 'true'
+        working-directory: site
+        run: |
+          # Scoped to archive/ on purpose: the summary file the sync leaves
+          # behind is not a change to the record, and a run that committed
+          # nothing but that would fail on an empty commit.
+          if [ -z "$(git status --porcelain -- archive)" ]; then
+            echo "archive unchanged"
+            rm -f .archive-summary
+            exit 0
+          fi
+          git config user.name  'ptp-archive'
+          git config user.email 'archive@users.noreply.github.com'
+          git add -A archive
+          msg=$(head -c 200 .archive-summary 2>/dev/null || echo 'Archive: refreshed')
+          rm -f .archive-summary
+          git commit -m "$msg"
+          # The liveness workflow pushes to this branch every 15 minutes;
+          # rebase rather than force, because its commit knows something this
+          # one does not (a repointed address book).
+          for i in 1 2 3; do
+            git pull --rebase origin gh-pages && git push origin HEAD:gh-pages && exit 0
+            sleep 5
+          done
+          echo "could not push after 3 tries" >&2
+          exit 1

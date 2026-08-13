@@ -1,0 +1,84 @@
+{
+  "name": "contracts",
+  "title": "The on-chain half — token, pool, anchor, rules",
+  "summary": "Four Solidity contracts and the tooling that compiles and deploys them. They are the version of this network that keeps working when every host is gone: the token that carries the money, the pool that prices it, the anchor that records epoch roots where nobody can quietly change them, and the registry that names which rule module is live.",
+  "owns": [
+    "contracts/**",
+    "ops/compile.mjs",
+    "ops/deploy.mjs",
+    "ops/abi/**",
+    "ops/addresses.json"
+  ],
+  "dependsOn": ["economics", "chain"],
+  "interfaces": [
+    "contracts/PtpToken.sol    18 decimals; mint only by epoch emission, burn by the burn share of every action",
+    "contracts/PtpPool.sol     the one constant-product market, BTC-side represented as the wrapped/claim asset; same arithmetic as core/amm.mjs, integer-exact",
+    "contracts/PtpAnchor.sol   one call per closed epoch: height, actsRoot, payloadsRoot, stateRoot, producer",
+    "contracts/PtpRules.sol    the rule key: version, hash, fromEpoch — and nothing else it can touch",
+    "node ops/compile.mjs      solc via the devDependency, deterministic output, ABI and bytecode into build/",
+    "node ops/deploy.mjs       ethers, one network at a time, addresses written to ops/addresses.json"
+  ],
+  "checks": [
+    {
+      "name": "contracts compile",
+      "run": "node ops/compile.mjs",
+      "why": "solc is the only devDependency and it is here for exactly this. A contract that does not compile is not a contract, and the artifact it writes carries the pinned compiler and settings so the bytecode is reproducible.",
+      "needs": {
+        "module": "solc",
+        "install": "npm install",
+        "why": "solc is a devDependency and nothing else in this repository imports it. A machine that only runs the network never needs it; CI installs it and runs this check for real under --no-skip."
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "The compiler and its settings are pinned and written into every artifact — solidity 0.8.24, optimizer on, 200 runs, evmVersion paris — so the same source produces the same bytecode on any machine.",
+      "heldBy": "ops/compile.mjs — SETTINGS is one object, it is stamped into each build/<Contract>.json, and ops/deploy.mjs re-checks the source hash against the artifact before it sends a transaction"
+    },
+    {
+      "statement": "ops/deploy.mjs never holds a key. It reads one from the environment, uses it, and writes only the deployed addresses.",
+      "heldBy": "ops/deploy.mjs — the key is read from the environment at the point of use, and the only file the script writes is the address book"
+    }
+  ],
+  "open": [
+    {
+      "statement": "PtpPool's amountOut agrees with core/amm.mjs exactly, wei for wei, over the whole tested range.",
+      "why": "Nothing runs the Solidity. The pool exists twice — once in JavaScript, once in Solidity — and if the two disagree by one wei the chain and the app disagree about who owns what. Closing this needs a test that compiles PtpPool.sol with solc, executes it, and runs the same randomised vectors through both. Executing EVM bytecode is the part this repository has no budget for: it is a dependency, and the house rule is zero new dependencies."
+    },
+    {
+      "statement": "No contract holds a key that can move a user's balance: no admin transfer, no pause that seizes, no upgrade proxy that can rewrite the token, and the rule key is powerless outside its one job.",
+      "why": "The compiled ABI would have to be scanned for owner-only functions that move value, and nothing scans it. The contracts say so in the comment at the top of each file, which is a statement of intent rather than a check. This is the most load-bearing of the three gaps, because it is the one a reader cannot verify by reading the JavaScript."
+    },
+    {
+      "statement": "PtpAnchor accepts each epoch height exactly once, and never a height below the one already anchored.",
+      "why": "Same reason: the property is a property of executed bytecode, and nothing here executes it. The anchor is what makes a rewrite expensive rather than merely detectable, so this gap is what stops that claim from being finished."
+    }
+  ],
+  "brief": {
+    "mission": "Write the contracts that mirror the economics exactly, and the two scripts that compile and deploy them. The bar is not that they work; it is that they agree with core/amm.mjs to the wei, and that nobody — including the operator, including the deployer — holds a key that can take somebody's balance.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 1, 2, 8, 9, 13 — the two assets, the pool, the rule key, the block, and what this is not",
+      "C:/Users/User/Desktop/ToRuleThemAll/webapp/chain-l2/ — PeerPools.sol, PeerToken.sol, PeerAnchor.sol, PeerClaim.sol, read-only",
+      "core/amm.mjs — the arithmetic you are mirroring, to the wei"
+    ],
+    "rules": [
+      "ethers is the only runtime dependency and solc the only devDependency. No Hardhat, no Foundry, no OpenZeppelin import. If you need an ERC-20, write the forty lines.",
+      "Pin the solc version in ops/compile.mjs and write it into the build output. A contract compiled by an unpinned compiler is not reproducible.",
+      "ops/deploy.mjs never holds a key. It reads one from the environment, uses it, and writes only addresses.",
+      "Say plainly in a comment at the top of each contract what it cannot do. Section 13 of ARCHITECTURE is the register: no exchange, no bridge, no custody, no redemption, no promise.",
+      "The three open invariants below are yours to close, and closing them is the largest single piece of work left in this repository. Whatever you build must execute the compiled bytecode without adding a dependency — a minimal EVM interpreter over node: builtins is the shape the house rules leave open."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs contracts is green with no skipped checks",
+      "node ops/compile.mjs produces the same bytecode twice on two machines",
+      "every function that moves value is reachable only by the account whose value it is",
+      "the three open invariants above are held by something that runs"
+    ],
+    "traps": [
+      "Solidity integer division truncates the same way BigInt does, but the intermediate widths do not match: a product that fits in a JavaScript BigInt can overflow uint256. Check the bound, do not assume it.",
+      "A constant-product pool with a fee applied in the wrong order gives a different answer by a few wei. Apply the fee to the input, before the product, exactly as core/amm.mjs does.",
+      "Deploying with a key that is also the rule key concentrates two powers in one place. Use different keys and write down which is which.",
+      "ops/compile.mjs takes no --check flag. Passing one is silently ignored and a full compile runs, writing build/ — which is what the check does on purpose, because a compile that writes nothing proves less."
+    ]
+  }
+}

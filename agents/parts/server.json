@@ -1,0 +1,140 @@
+{
+  "name": "server",
+  "title": "The writer — node:http, no framework, one act log, one oracle",
+  "summary": "The process that holds the pen: it appends signed acts to data/acts.jsonl, serves the read API and the media, watches the bitcoin burn address, reads the EUR/BTC rate the whole price surface hangs on, and refuses everything replay would skip. It decides nothing about what is true — replay decides — it only decides what gets written down and in what order.",
+  "owns": [
+    "server/index.mjs",
+    "server/log.mjs",
+    "server/media.mjs",
+    "server/burnwatch.mjs",
+    "server/capacity.mjs",
+    "server/oracle.mjs",
+    "server/scripts/**",
+    "server/README.md",
+    "docs/API.md",
+    "test/server.test.mjs"
+  ],
+  "dependsOn": ["core", "economics", "chain"],
+  "interfaces": [
+    "GET  /api/v1            the self-describing contract — every route, every act kind, every parameter",
+    "GET  /api/v1/errors     the whole refusal catalogue: code, why, fix",
+    "GET  /api/v1/oracle     { eurPerBtcNano, at, sources[], sig }",
+    "GET  /api/v1/rules      active rule version, its hash and its full source",
+    "GET  /api/v1/rules/:version   any earlier one, so every past epoch stays recomputable",
+    "GET  /api/chain, /api/chain/head",
+    "POST /api/v1/act        one signed act; answers with code, msg and next on refusal",
+    "server/oracle.mjs  export function readOracle(options): { eurPerBtcNano, at, epoch, sources[], answered, quorum, median, clamped }",
+    "server/oracle.mjs  export function sealOracle(reading, key)   // the signed body an epoch block carries",
+    "server/oracle.mjs  export function medianNano(values): bigint // truncating downward, so a rounding rule can never raise a fee"
+  ],
+  "checks": [
+    {
+      "name": "the writer, driven over HTTP",
+      "run": "node --test test/server.test.mjs",
+      "why": "The whole host on an ephemeral port with fetch on the other end: the API contract, the append-only log, the media store, the burn watch, the oracle, the rate limiter and the epoch close. Nothing reaches inside to call a handler directly, because the status line, the refusal body and the order two checks run in are exactly what a direct call skips."
+    },
+    {
+      "name": "the host never widens the rulebook",
+      "run": "node --test test/one-rulebook.test.mjs",
+      "why": "Rule 2 from the writer's side. The host must refuse exactly what actError refuses, and where it refuses more — a signature, a picture's bytes, an explorer, a clock — that asymmetry must run in one direction only. The reverse is a fork with nothing in the record saying so."
+    }
+  ],
+  "invariants": [
+    {
+      "statement": "The server never accepts an act that core/replay.mjs would skip. It validates with actError against its live world before it appends, and it appends nothing else.",
+      "heldBy": "test/server.test.mjs :: \"the server refuses exactly what actError refuses, code for code\""
+    },
+    {
+      "statement": "Every act the server accepted survives a full replay of the file it actually wrote, so the live world and a cold replay agree to the byte.",
+      "heldBy": "test/server.test.mjs :: \"every accepted act survives a full replay of the file that was written\""
+    },
+    {
+      "statement": "The act log is append-only. An existing line is never rewritten, an index is never reused, and a crash mid-write is truncated to the last complete line and reported rather than silently repaired.",
+      "heldBy": "test/server.test.mjs :: \"the log is append-only across a restart, and indices are dense\""
+    },
+    {
+      "statement": "Concurrent submissions are serialised through one queue, so two acts racing for one index cannot interleave.",
+      "heldBy": "test/server.test.mjs :: \"concurrent writes do not interleave, and every index is used exactly once\""
+    },
+    {
+      "statement": "The host holds no wallet and no spendable key. Acts are signed by their authors; the server verifies signatures and stores none of its own beyond the epoch producer key.",
+      "heldBy": "test/server.test.mjs :: \"an act with a bad signature is refused\""
+    },
+    {
+      "statement": "A burnClaim is granted only when two independent public explorers agree the output exists, is spent to the keyless address, and carries the claimed satoshis.",
+      "heldBy": "test/server.test.mjs :: \"two explorers must agree, and every way they can disagree is refused\""
+    },
+    {
+      "statement": "The keyless burn output is derived rather than pasted, so a typo in a constant cannot send reserve to an address somebody can spend.",
+      "heldBy": "test/server.test.mjs :: \"the burn output is a p2wsh of a bare OP_RETURN, derived and not pasted\""
+    },
+    {
+      "statement": "Every refusal answers with all four fields — code, msg, why, next — and with the status the catalogue names, so a bot never has to parse a sentence to learn what happened.",
+      "heldBy": "test/server.test.mjs :: \"a refusal always carries all four fields and the catalogue status\""
+    },
+    {
+      "statement": "GET /api/v1 describes every route this host actually has, and every route it names answers. The API is the whole documentation for a bot, so a route that drifts from its own description is a lie told to every agent that reads it.",
+      "heldBy": "test/server.test.mjs :: \"GET /api/v1 describes the whole API, and every route it names answers\""
+    },
+    {
+      "statement": "A blob is served only if its bytes hash to the name it is served under, its type is read from the leading bytes rather than from a name or a header, and settlement really deletes it from disk.",
+      "heldBy": "test/server.test.mjs :: \"a settled post pays the creator and its bytes are really gone from disk\""
+    },
+    {
+      "statement": "The EUR/BTC rate is the median of at least five configured sources with a quorum of three answering. A median of two is a mean of two, and a mean of two is what a single liar wants.",
+      "heldBy": "test/server.test.mjs :: \"the oracle takes a median of five, survives an outlier, and needs a quorum\""
+    },
+    {
+      "statement": "The rate moves at most ten percent an epoch against the previously sealed one, and says so when it was clamped. Sustaining a 2x distortion costs eight epochs of public lying.",
+      "heldBy": "test/server.test.mjs :: \"a move beyond ten percent an epoch is clamped, and says so\""
+    },
+    {
+      "statement": "The median truncates downward and a decimal price becomes an exact integer rate, so no rounding rule anywhere in the oracle can raise a fee.",
+      "heldBy": "test/server.test.mjs :: \"a decimal price becomes an exact integer rate, and the median truncates downward\""
+    },
+    {
+      "statement": "Every source's own value is published and sealed, not only the median, so a lie is attributable to a named source rather than merely visible in aggregate. A source that was asked and stayed silent is published too, so three-of-five never looks like three-of-three.",
+      "heldBy": "test/server.test.mjs :: \"GET /api/v1/oracle publishes every source, signed\""
+    },
+    {
+      "statement": "The rate a host publishes and the rate its epoch block seals are signed by one key, so a host that showed a different rate for a closed epoch contradicts its own signature.",
+      "heldBy": "test/server.test.mjs :: \"the oracle and the epoch block are signed by one key\""
+    },
+    {
+      "statement": "A host that is not the elected writer refuses to write and keeps answering reads. Writes pass through one writer at a time; reads pass through anything.",
+      "heldBy": "test/server.test.mjs :: \"a host that is not the writer refuses to write and keeps answering reads\""
+    }
+  ],
+  "open": [
+    {
+      "statement": "The five configured oracle sources are independent of one another.",
+      "why": "Nothing measurable from inside this repository tells five endpoints reselling one exchange feed apart from five markets. server/oracle.mjs says so in its own header rather than implying it through the word 'independent' in a parameter name. The defence is publishing the list so a reader who knows the market can object, and that is a social check, not a test."
+    }
+  ],
+  "brief": {
+    "mission": "Write the process that accepts acts and serves reads, with node:http and nothing else. Its whole job is ordering and durability: assign the index, stamp the time, verify the signature, ask actError, append the line, and answer. Everything a reader wants — balances, feeds, earnings — comes back out of replay, not out of a cache you maintain by hand.",
+    "readFirst": [
+      "docs/ARCHITECTURE.md sections 3, 4, 5, 7, 10 — the oracle, acts, the rulebook, capacity, decentralised hosting",
+      "C:/Users/User/Desktop/peernet/server/ — the first iteration, read-only",
+      "core/errors.mjs — the refusal register; never invent a bare throw with a sentence in it"
+    ],
+    "rules": [
+      "No framework, no middleware, no dependency. node:http, node:fs, node:crypto.",
+      "Writes pass through one writer at a time. Whether this process is that writer is decided by server/chain/election.mjs, which the chain part owns — call it, do not reimplement it.",
+      "Media is content-addressed: a blob's name is the sha256 of its bytes, and a blob that does not hash to its own name is never written and never served.",
+      "The oracle is the median of at least five independent public sources with a quorum of three, clamped to ten percent a epoch, signed by the epoch producer key, and sealed into the block with every source's own value. Never serve a rate you did not sign.",
+      "The host's own checks — the clock bound, the picture's bytes, the explorers, a capacity proof — run AFTER actError, and every one of them may only ever turn an accepted act into a refused one."
+    ],
+    "doneWhen": [
+      "node agents/run.mjs server is green",
+      "GET /api/v1 describes every route this server actually has, and a stranger can register and post from curl alone",
+      "npm start comes up on a fresh checkout with an empty data/ directory and does not crash on the first act"
+    ],
+    "traps": [
+      "Two concurrent POSTs racing for the same act index will silently interleave lines. Serialise appends through one queue, and fsync before you answer OK — an act you acknowledged and then lost is worse than a refusal.",
+      "A crash mid-write leaves a partial last line. Truncate to the last complete newline on startup, and say so in the log.",
+      "Never trust the client's timestamp for anything but display. The writer's stamp is what replay reads.",
+      "A cheap duplicate-signature check placed before actError answers DUPLICATE_ACT where the rulebook answers VIEW_SEQ_REPLAY. Two refusals for one act is exactly the drift rule 2 exists to stop, so the cheap check waits for the authoritative one."
+    ]
+  }
+}

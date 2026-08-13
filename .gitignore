@@ -1,0 +1,9 @@
+node_modules/
+data/
+dist/
+*.log
+.env
+.env.local
+ops/keys/
+server-data/
+build/
