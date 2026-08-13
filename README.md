@@ -29,9 +29,10 @@ npm install
 npm start
 ```
 
-Then open <http://localhost:8787>. Mobile-first, black and white; the desktop is
-the same app in the same shape — a centred column of phone width, not a reflowed
-layout.
+Then open <http://localhost:8787>. Mobile-first and dark; the desktop is the same
+app in the same shape — a centred column of phone width, not a reflowed layout.
+Near-black green, glowing, round; figures set in a serif over sans text, because
+a figure here is a claim about money and should not look like a label.
 
 ```bash
 npm test                   # 347 tests: economics, replay, chain, client, hostile input
@@ -241,8 +242,9 @@ docs/      ARCHITECTURE · ECONOMICS · DESIGN · DECENTRALIZATION · AGENTS · 
 ```
 
 The only runtime dependency is `ethers`. No framework, no CSS library, no build
-step, no web fonts, no CDN — so the app runs offline and ships nothing to
-anybody else's server.
+step, no CDN — so the app runs offline and ships nothing to anybody else's
+server. The three typefaces are vendored as woff2 in `app/fonts/`, 71 KB in
+total, for the same reason.
 
 ---
 

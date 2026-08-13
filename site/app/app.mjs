@@ -561,6 +561,7 @@ export function checkAct(world, address, act, now) {
 
 const $ = (id) => document.getElementById(id);
 const ACTS_PATH = '/api/v1/acts';
+const BURN_PATH = '/api/v1/burn';
 const ACT_PATH = '/api/v1/act';
 const MEDIA_PATH = '/api/v1/media';
 
@@ -805,17 +806,28 @@ export async function boot() {
       node.textContent = 'No host is answering, so no burn address can be shown.';
       return;
     }
+    // Asked of /api/v1/burn, which is where the fact lives. This used to ask
+    // /api/v1 and scan it for four key names the host has never used, so it
+    // always fell through to "this host publishes no burn address" — on a host
+    // that was publishing it one path along. Burn is the only way in, so that
+    // message was the front door saying there is no door.
     try {
-      const r = await fetch(state.base + '/api/v1', { headers: { accept: 'application/json' } });
+      const r = await fetch(state.base + BURN_PATH, { headers: { accept: 'application/json' } });
       const body = await r.json();
-      for (const key of ['burnAddress', 'burn', 'keylessAddress', 'burnTo']) {
-        const value = body && (body[key] || (body.chain && body.chain[key]) || (body.params && body.params[key]));
-        if (typeof value === 'string' && value.length > 0) {
-          node.textContent = value;
-          return;
-        }
+      const value = body && (body.burnAddress || body.address);
+      if (typeof value === 'string' && value.length > 0) {
+        node.textContent = value;
+        return;
       }
-      node.textContent = 'This host publishes no burn address at /api/v1. Nothing can be claimed until it does.';
+      // A host may legitimately publish only the output script — that is the
+      // truth the address is derived from — and a script is still actionable by
+      // someone who knows what to do with it. Showing it beats claiming nothing
+      // exists.
+      if (typeof body?.scriptHex === 'string' && body.scriptHex.length > 0) {
+        node.textContent = body.scriptHex + ' (output script; this host publishes no address for it)';
+        return;
+      }
+      node.textContent = 'This host publishes no burn address at ' + BURN_PATH + '. Nothing can be claimed until it does.';
     } catch {
       node.textContent = 'The host could not be asked for the burn address.';
     }

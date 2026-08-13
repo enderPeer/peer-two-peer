@@ -493,25 +493,49 @@ network.
 
 ## 11. The design
 
-Mobile-first, black and white, and the desktop is the same app in the same
-shape — a centred column of phone width, not a reflowed layout. One
-implementation, one set of breakpoints that only ever change the frame around
-the column.
+Mobile-first, and the desktop is the same app in the same shape — a centred
+column of phone width, not a reflowed layout. One implementation, one set of
+breakpoints that only ever change the frame around the column.
 
-- Two colours: ink `#000`, paper `#FFF`. Grey only for disabled states and
-  hairlines. Colour appears nowhere except the pictures themselves, which is
-  the point — the interface is the frame, the photograph is the content.
-- Type only. No icon fonts, no external assets, no web fonts, no CDN. The app
-  is `system-ui` and geometry, so it works offline and ships nothing to
-  anybody else's server.
-- Smooth means: 60 fps scroll with `content-visibility: auto`, images
-  decoded off-thread, no layout shift (every picture reserves its
-  `aspect-ratio` from the act before the bytes arrive), and momentum that
-  never fights the platform.
-- `prefers-reduced-motion` removes every transition.
-- Prices are always visible and always in euros. A running session total sits
-  in the header, because a network that bills per impression and hides the
-  meter is a trap.
+**The interface is dark green, and dark at every setting.** A near-black ground
+with four slow blurred blobs drifting behind everything; raised cards at a 28px
+radius with a faint green edge and a deep soft shadow; every button and tab a
+full pill.
+
+- **Figures are set in a serif.** Instrument Serif for every number — a price, a
+  balance, a view count, a standing — over Outfit for everything that is words.
+  That one pairing is what makes the interface look designed rather than
+  themed, and it also does a job: a figure in this network is a claim about
+  money, and it should not look like a label.
+- **Michroma for the wordmark and nothing else.**
+- Muted green carries labels and meta; bright green `#4CFF8F` is reserved for
+  what is live. Colour is never the only carrier of a state.
+- **Still no external assets.** The three typefaces are vendored as woff2 files
+  in `app/fonts/` — 71 KB in total — because a stylesheet that fetched a font
+  CDN would tell a third party the IP address of every reader on every load,
+  before a single picture had been shown. A network built so that no host has to
+  be trusted should not open by handing a visitor's address to one that is not
+  even part of it. No CDN, no remote image, no icon font; the mark is an inline
+  SVG symbol.
+- Smooth means: 60 fps scroll with `content-visibility: auto`, images decoded
+  off-thread, no layout shift (every picture reserves its `aspect-ratio` from
+  the act before the bytes arrive), and momentum that never fights the platform.
+- `prefers-reduced-motion` removes every transition **and stops the glow**. The
+  blobs are the one piece of this design that moves on its own, so they are the
+  first thing that must not.
+- Prices are always visible and always in euros. A running session total sits in
+  the header, because a network that bills per impression and hides the meter is
+  a trap.
+
+> **This replaced a strictly black-and-white design, deliberately.** The earlier
+> one argued that "the interface is the frame, the photograph is the content"
+> and that two colours kept it honest. That reasoning was sound and it is not
+> what was wanted; the owner supplied this system and asked for it. What
+> survived the change is everything that was load-bearing rather than
+> stylistic — the phone-width column at every width, no third-party requests,
+> reduced-motion, the always-visible meter, and the measured contrast table in
+> [DESIGN.md](DESIGN.md). A redesign is allowed to change how it looks. It is
+> not allowed to quietly drop a commitment.
 
 ---
 

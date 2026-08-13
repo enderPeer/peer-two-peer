@@ -8,39 +8,115 @@
 <title>Peer two Peer</title>
 <meta name="description" content="A picture network where every impression is priced in euros, every action burns PTP, and the pictures live on the members' own devices.">
 
-<!-- The two colours, declared to the browser chrome as well, so the address
-     bar and the splash screen invert with the app instead of fighting it. -->
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<!-- One scheme, declared once. This interface is dark green at every setting,
+     so there is no light variant for the browser chrome to match and nothing
+     for a media query to switch between: the address bar, the splash screen
+     and the task switcher all take the page's own ground colour. -->
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050B07">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- black-translucent puts the web view UNDER the status bar rather than
+     beside it. That is what makes the header's own top padding — built from
+     env(safe-area-inset-top), which viewport-fit=cover above turns on — the
+     thing that clears the clock, and it is what lets the glow run to the very
+     top of the screen instead of stopping at a grey strip. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <!-- No external asset anywhere in this document: the icon is an inline SVG
-     carried as a data URI, the same mark the manifest ships. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23fff'/%3E%3Crect x='4' y='4' width='16' height='16' fill='%23000'/%3E%3Crect x='12.5' y='12.5' width='15' height='15' fill='none' stroke='%23000' stroke-width='3'/%3E%3C/svg%3E">
+     carried as a data URI, holding the same two paths as the <symbol> at the
+     top of the body and the same mark the manifest ships. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Crect%20width='512'%20height='512'%20fill='%23050B07'/%3E%3Csvg%20x='120'%20y='61'%20width='272'%20height='390'%20viewBox='-10%200%20620%20890'%3E%3Cpath%20fill='%23123D24'%20d='M250%20142C278%20134%20316%20128%20354%20124C404%20120%20450%20148%20476%20190C500%20228%20520%20280%20534%20326C544%20356%20550%20376%20556%20392C562%20403%20560%20410%20552%20413C544%20416%20541%20417%20541%20423C544%20434%20558%20444%20572%20456C584%20466%20595%20473%20593%20480C590%20487%20576%20488%20563%20488C555%20489%20549%20488%20546%20494C542%20501%20556%20506%20556%20513C556%20521%20545%20523%20546%20530C547%20539%20559%20543%20560%20551C561%20561%20552%20566%20554%20576C557%20587%20572%20592%20573%20604C574%20618%20566%20631%20553%20641C534%20662%20512%20679%20488%20695C458%20715%20424%20731%20392%20741C352%20753%20300%20751%20268%20745L250%20739ZM322.00%201.00C333.60%201.00%20343.00%2010.40%20343.00%2022.00C343.00%2033.60%20333.60%2043.00%20322.00%2043.00C310.40%2043.00%20301.00%2033.60%20301.00%2022.00C301.00%2010.40%20310.40%201.00%20322.00%201.00ZM315%2022L329%2022L329%20153L315%20153ZM384.0%20153.0L353.0%20206.7L291.0%20206.7L260.0%20153.0L291.0%2099.3L353.0%2099.3ZM175%20438L267%20438L267%20452L175%20452ZM175.0%20445.0L147.5%20492.6L92.5%20492.6L65.0%20445.0L92.5%20397.4L147.5%20397.4ZM336.0%20240.5L348.9%20240.5L349.6%20242.5L350.4%20244.5L351.5%20246.4L352.6%20248.2L354.0%20249.9L355.5%20251.4L357.1%20252.8L358.9%20254.1L360.7%20255.2L362.6%20256.1L364.7%20256.8L366.7%20257.4L368.8%20257.8L371.0%20258.0L373.1%20258.0L375.3%20257.8L377.4%20257.4L379.5%20256.8L381.5%20256.0L383.4%20255.1L385.3%20254.0L387.0%20252.7L388.6%20251.3L390.1%20249.8L391.4%20248.1L392.6%20246.3L393.6%20244.4L394.5%20242.4L395.1%20240.4L395.6%20238.3L395.9%20236.1L396.0%20234.0L395.9%20231.9L395.6%20229.7L395.1%20227.6L394.5%20225.6L393.6%20223.6L392.6%20221.7L391.4%20219.9L390.1%20218.2L388.6%20216.7L387.0%20215.3L385.3%20214.0L383.4%20212.9L381.5%20212.0L379.5%20211.2L377.4%20210.6L375.3%20210.2L373.1%20210.0L371.0%20210.0L368.8%20210.2L366.7%20210.6L364.7%20211.2L362.6%20211.9L360.7%20212.8L358.9%20213.9L357.1%20215.2L355.5%20216.6L354.0%20218.1L352.6%20219.8L351.5%20221.6L350.4%20223.5L349.6%20225.5L348.9%20227.5L336.0%20227.5ZM348.0%20373.5L360.9%20373.5L361.6%20375.5L362.4%20377.5L363.5%20379.4L364.6%20381.2L366.0%20382.9L367.5%20384.4L369.1%20385.8L370.9%20387.1L372.7%20388.2L374.6%20389.1L376.7%20389.8L378.7%20390.4L380.8%20390.8L383.0%20391.0L385.1%20391.0L387.3%20390.8L389.4%20390.4L391.5%20389.8L393.5%20389.0L395.4%20388.1L397.3%20387.0L399.0%20385.7L400.6%20384.3L402.1%20382.8L403.4%20381.1L404.6%20379.3L405.6%20377.4L406.5%20375.4L407.1%20373.4L407.6%20371.3L407.9%20369.1L408.0%20367.0L407.9%20364.9L407.6%20362.7L407.1%20360.6L406.5%20358.6L405.6%20356.6L404.6%20354.7L403.4%20352.9L402.1%20351.2L400.6%20349.7L399.0%20348.3L397.3%20347.0L395.4%20345.9L393.5%20345.0L391.5%20344.2L389.4%20343.6L387.3%20343.2L385.1%20343.0L383.0%20343.0L380.8%20343.2L378.7%20343.6L376.7%20344.2L374.6%20344.9L372.7%20345.8L370.9%20346.9L369.1%20348.2L367.5%20349.6L366.0%20351.1L364.6%20352.8L363.5%20354.6L362.4%20356.5L361.6%20358.5L360.9%20360.5L348.0%20360.5ZM348.0%20479.5L360.9%20479.5L361.6%20481.5L362.4%20483.5L363.5%20485.4L364.6%20487.2L366.0%20488.9L367.5%20490.4L369.1%20491.8L370.9%20493.1L372.7%20494.2L374.6%20495.1L376.7%20495.8L378.7%20496.4L380.8%20496.8L383.0%20497.0L385.1%20497.0L387.3%20496.8L389.4%20496.4L391.5%20495.8L393.5%20495.0L395.4%20494.1L397.3%20493.0L399.0%20491.7L400.6%20490.3L402.1%20488.8L403.4%20487.1L404.6%20485.3L405.6%20483.4L406.5%20481.4L407.1%20479.4L407.6%20477.3L407.9%20475.1L408.0%20473.0L407.9%20470.9L407.6%20468.7L407.1%20466.6L406.5%20464.6L405.6%20462.6L404.6%20460.7L403.4%20458.9L402.1%20457.2L400.6%20455.7L399.0%20454.3L397.3%20453.0L395.4%20451.9L393.5%20451.0L391.5%20450.2L389.4%20449.6L387.3%20449.2L385.1%20449.0L383.0%20449.0L380.8%20449.2L378.7%20449.6L376.7%20450.2L374.6%20450.9L372.7%20451.8L370.9%20452.9L369.1%20454.2L367.5%20455.6L366.0%20457.1L364.6%20458.8L363.5%20460.6L362.4%20462.5L361.6%20464.5L360.9%20466.5L348.0%20466.5ZM403.0%20639.5L415.9%20639.5L416.6%20641.5L417.4%20643.5L418.5%20645.4L419.6%20647.2L421.0%20648.9L422.5%20650.4L424.1%20651.8L425.9%20653.1L427.7%20654.2L429.6%20655.1L431.7%20655.8L433.7%20656.4L435.8%20656.8L438.0%20657.0L440.1%20657.0L442.3%20656.8L444.4%20656.4L446.5%20655.8L448.5%20655.0L450.4%20654.1L452.3%20653.0L454.0%20651.7L455.6%20650.3L457.1%20648.8L458.4%20647.1L459.6%20645.3L460.6%20643.4L461.5%20641.4L462.1%20639.4L462.6%20637.3L462.9%20635.1L463.0%20633.0L462.9%20630.9L462.6%20628.7L462.1%20626.6L461.5%20624.6L460.6%20622.6L459.6%20620.7L458.4%20618.9L457.1%20617.2L455.6%20615.7L454.0%20614.3L452.3%20613.0L450.4%20611.9L448.5%20611.0L446.5%20610.2L444.4%20609.6L442.3%20609.2L440.1%20609.0L438.0%20609.0L435.8%20609.2L433.7%20609.6L431.7%20610.2L429.6%20610.9L427.7%20611.8L425.9%20612.9L424.1%20614.2L422.5%20615.6L421.0%20617.1L419.6%20618.8L418.5%20620.6L417.4%20622.5L416.6%20624.5L415.9%20626.5L403.0%20626.5ZM288.5%20196.2L197.5%20196.2L152.0%20275.0L197.5%20353.8L288.5%20353.8L334.0%20275.0ZM301.5%20492.9L212.5%20492.9L168.0%20570.0L212.5%20647.1L301.5%20647.1L346.0%20570.0ZM368.5%20615.9L279.5%20615.9L235.0%20693.0L279.5%20770.1L368.5%20770.1L413.0%20693.0Z'/%3E%3Cpath%20fill='%234CFF8F'%20d='M195.0%20155.0L175.0%20189.6L135.0%20189.6L115.0%20155.0L135.0%20120.4L175.0%20120.4ZM125%20268L167%20268L167%20282L125%20282ZM125.0%20275.0L104.0%20311.4L62.0%20311.4L41.0%20275.0L62.0%20238.6L104.0%20238.6ZM323.0%20275.0L283.0%20344.3L203.0%20344.3L163.0%20275.0L203.0%20205.7L283.0%20205.7ZM77%20563L184%20563L184%20577L77%20577ZM77.0%20570.0L56.0%20606.4L14.0%20606.4L-7.0%20570.0L14.0%20533.6L56.0%20533.6ZM335.0%20570.0L296.0%20637.5L218.0%20637.5L179.0%20570.0L218.0%20502.5L296.0%20502.5ZM209.0%20705.0L185.5%20745.7L138.5%20745.7L115.0%20705.0L138.5%20664.3L185.5%20664.3ZM402.0%20693.0L363.0%20760.5L285.0%20760.5L246.0%20693.0L285.0%20625.5L363.0%20625.5ZM317%20693L331%20693L331%20863L317%20863ZM324.00%20842.00C335.60%20842.00%20345.00%20851.40%20345.00%20863.00C345.00%20874.60%20335.60%20884.00%20324.00%20884.00C312.40%20884.00%20303.00%20874.60%20303.00%20863.00C303.00%20851.40%20312.40%20842.00%20324.00%20842.00Z'/%3E%3C/svg%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
+
+<!-- The three typefaces are files in this repository rather than a link to a
+     font CDN, which is a claim about privacy and not a preference — see
+     app/fonts/README.md. These preloads change nothing about where they come
+     from; they only start the fetch earlier. Without them the browser cannot
+     know a font is wanted until it has fetched style.css, matched a rule and
+     laid out a line, so the first paint of the wordmark and of every figure
+     waits on three serial round trips. @font-face itself belongs in the
+     stylesheet and is declared there, against these same three paths.
+
+     crossorigin is not decoration: a font is fetched in anonymous CORS mode
+     even from its own origin, so a preload without it does not match the
+     request the stylesheet later makes and the file is simply fetched twice. -->
+<link rel="preload" href="fonts/Outfit-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Michroma-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/InstrumentSerif-400.woff2" as="font" type="font/woff2" crossorigin>
+
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THE GLOW — four blurred blobs drifting behind everything, and the only
+     part of this interface that moves on its own. style.css gives these four
+     empty spans their size, position, gradient and animation, and stops all
+     four dead under prefers-reduced-motion; the markup says only how many
+     there are. Four, exactly: the stylesheet addresses them by position.
+
+     It is the first child of the body so it lies under every layer without
+     needing a stacking context of its own, and aria-hidden because it is
+     weather rather than content.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="glow" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<!-- THE MARK, once. Every place the mark appears — the header lockup and
+     every avatar — is a <use> pointing at this one <symbol>, so a feed of
+     forty cards carries one copy of a 5 KB path instead of forty. It is an
+     element and not a file, so it costs no request, and it inherits colour:
+     the head silhouette is drawn in currentColor and takes the shade of
+     whatever it sits in, while the hexagon lattice keeps its own phosphor
+     green in every context.
+
+     width="0" height="0" empties the box. The inline position:absolute is
+     here because a zero-sized inline element still generates a line box, and
+     this one must not push the page down by one line in the moment before
+     style.css arrives. It must never be display:none or [hidden]: a hidden
+     subtree stops <use> resolving, and every mark in the app would vanish. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="enMark" viewBox="-10 0 620 890">
+<path fill="currentColor" d="M250 142C278 134 316 128 354 124C404 120 450 148 476 190C500 228 520 280 534 326C544 356 550 376 556 392C562 403 560 410 552 413C544 416 541 417 541 423C544 434 558 444 572 456C584 466 595 473 593 480C590 487 576 488 563 488C555 489 549 488 546 494C542 501 556 506 556 513C556 521 545 523 546 530C547 539 559 543 560 551C561 561 552 566 554 576C557 587 572 592 573 604C574 618 566 631 553 641C534 662 512 679 488 695C458 715 424 731 392 741C352 753 300 751 268 745L250 739ZM322.00 1.00C333.60 1.00 343.00 10.40 343.00 22.00C343.00 33.60 333.60 43.00 322.00 43.00C310.40 43.00 301.00 33.60 301.00 22.00C301.00 10.40 310.40 1.00 322.00 1.00ZM315 22L329 22L329 153L315 153ZM384.0 153.0L353.0 206.7L291.0 206.7L260.0 153.0L291.0 99.3L353.0 99.3ZM175 438L267 438L267 452L175 452ZM175.0 445.0L147.5 492.6L92.5 492.6L65.0 445.0L92.5 397.4L147.5 397.4ZM336.0 240.5L348.9 240.5L349.6 242.5L350.4 244.5L351.5 246.4L352.6 248.2L354.0 249.9L355.5 251.4L357.1 252.8L358.9 254.1L360.7 255.2L362.6 256.1L364.7 256.8L366.7 257.4L368.8 257.8L371.0 258.0L373.1 258.0L375.3 257.8L377.4 257.4L379.5 256.8L381.5 256.0L383.4 255.1L385.3 254.0L387.0 252.7L388.6 251.3L390.1 249.8L391.4 248.1L392.6 246.3L393.6 244.4L394.5 242.4L395.1 240.4L395.6 238.3L395.9 236.1L396.0 234.0L395.9 231.9L395.6 229.7L395.1 227.6L394.5 225.6L393.6 223.6L392.6 221.7L391.4 219.9L390.1 218.2L388.6 216.7L387.0 215.3L385.3 214.0L383.4 212.9L381.5 212.0L379.5 211.2L377.4 210.6L375.3 210.2L373.1 210.0L371.0 210.0L368.8 210.2L366.7 210.6L364.7 211.2L362.6 211.9L360.7 212.8L358.9 213.9L357.1 215.2L355.5 216.6L354.0 218.1L352.6 219.8L351.5 221.6L350.4 223.5L349.6 225.5L348.9 227.5L336.0 227.5ZM348.0 373.5L360.9 373.5L361.6 375.5L362.4 377.5L363.5 379.4L364.6 381.2L366.0 382.9L367.5 384.4L369.1 385.8L370.9 387.1L372.7 388.2L374.6 389.1L376.7 389.8L378.7 390.4L380.8 390.8L383.0 391.0L385.1 391.0L387.3 390.8L389.4 390.4L391.5 389.8L393.5 389.0L395.4 388.1L397.3 387.0L399.0 385.7L400.6 384.3L402.1 382.8L403.4 381.1L404.6 379.3L405.6 377.4L406.5 375.4L407.1 373.4L407.6 371.3L407.9 369.1L408.0 367.0L407.9 364.9L407.6 362.7L407.1 360.6L406.5 358.6L405.6 356.6L404.6 354.7L403.4 352.9L402.1 351.2L400.6 349.7L399.0 348.3L397.3 347.0L395.4 345.9L393.5 345.0L391.5 344.2L389.4 343.6L387.3 343.2L385.1 343.0L383.0 343.0L380.8 343.2L378.7 343.6L376.7 344.2L374.6 344.9L372.7 345.8L370.9 346.9L369.1 348.2L367.5 349.6L366.0 351.1L364.6 352.8L363.5 354.6L362.4 356.5L361.6 358.5L360.9 360.5L348.0 360.5ZM348.0 479.5L360.9 479.5L361.6 481.5L362.4 483.5L363.5 485.4L364.6 487.2L366.0 488.9L367.5 490.4L369.1 491.8L370.9 493.1L372.7 494.2L374.6 495.1L376.7 495.8L378.7 496.4L380.8 496.8L383.0 497.0L385.1 497.0L387.3 496.8L389.4 496.4L391.5 495.8L393.5 495.0L395.4 494.1L397.3 493.0L399.0 491.7L400.6 490.3L402.1 488.8L403.4 487.1L404.6 485.3L405.6 483.4L406.5 481.4L407.1 479.4L407.6 477.3L407.9 475.1L408.0 473.0L407.9 470.9L407.6 468.7L407.1 466.6L406.5 464.6L405.6 462.6L404.6 460.7L403.4 458.9L402.1 457.2L400.6 455.7L399.0 454.3L397.3 453.0L395.4 451.9L393.5 451.0L391.5 450.2L389.4 449.6L387.3 449.2L385.1 449.0L383.0 449.0L380.8 449.2L378.7 449.6L376.7 450.2L374.6 450.9L372.7 451.8L370.9 452.9L369.1 454.2L367.5 455.6L366.0 457.1L364.6 458.8L363.5 460.6L362.4 462.5L361.6 464.5L360.9 466.5L348.0 466.5ZM403.0 639.5L415.9 639.5L416.6 641.5L417.4 643.5L418.5 645.4L419.6 647.2L421.0 648.9L422.5 650.4L424.1 651.8L425.9 653.1L427.7 654.2L429.6 655.1L431.7 655.8L433.7 656.4L435.8 656.8L438.0 657.0L440.1 657.0L442.3 656.8L444.4 656.4L446.5 655.8L448.5 655.0L450.4 654.1L452.3 653.0L454.0 651.7L455.6 650.3L457.1 648.8L458.4 647.1L459.6 645.3L460.6 643.4L461.5 641.4L462.1 639.4L462.6 637.3L462.9 635.1L463.0 633.0L462.9 630.9L462.6 628.7L462.1 626.6L461.5 624.6L460.6 622.6L459.6 620.7L458.4 618.9L457.1 617.2L455.6 615.7L454.0 614.3L452.3 613.0L450.4 611.9L448.5 611.0L446.5 610.2L444.4 609.6L442.3 609.2L440.1 609.0L438.0 609.0L435.8 609.2L433.7 609.6L431.7 610.2L429.6 610.9L427.7 611.8L425.9 612.9L424.1 614.2L422.5 615.6L421.0 617.1L419.6 618.8L418.5 620.6L417.4 622.5L416.6 624.5L415.9 626.5L403.0 626.5ZM288.5 196.2L197.5 196.2L152.0 275.0L197.5 353.8L288.5 353.8L334.0 275.0ZM301.5 492.9L212.5 492.9L168.0 570.0L212.5 647.1L301.5 647.1L346.0 570.0ZM368.5 615.9L279.5 615.9L235.0 693.0L279.5 770.1L368.5 770.1L413.0 693.0Z"></path>
+<path fill="#4CFF8F" d="M195.0 155.0L175.0 189.6L135.0 189.6L115.0 155.0L135.0 120.4L175.0 120.4ZM125 268L167 268L167 282L125 282ZM125.0 275.0L104.0 311.4L62.0 311.4L41.0 275.0L62.0 238.6L104.0 238.6ZM323.0 275.0L283.0 344.3L203.0 344.3L163.0 275.0L203.0 205.7L283.0 205.7ZM77 563L184 563L184 577L77 577ZM77.0 570.0L56.0 606.4L14.0 606.4L-7.0 570.0L14.0 533.6L56.0 533.6ZM335.0 570.0L296.0 637.5L218.0 637.5L179.0 570.0L218.0 502.5L296.0 502.5ZM209.0 705.0L185.5 745.7L138.5 745.7L115.0 705.0L138.5 664.3L185.5 664.3ZM402.0 693.0L363.0 760.5L285.0 760.5L246.0 693.0L285.0 625.5L363.0 625.5ZM317 693L331 693L331 863L317 863ZM324.00 842.00C335.60 842.00 345.00 851.40 345.00 863.00C345.00 874.60 335.60 884.00 324.00 884.00C312.40 884.00 303.00 874.60 303.00 863.00C303.00 851.40 312.40 842.00 324.00 842.00Z"></path>
+</symbol>
+</svg>
 
 <a class="vh" href="#main">Skip to the feed</a>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
      HEADER — the meter lives here and never leaves the screen.
-     Left: the mark. Centre: what this session has cost, in euros. Right: who
-     you are. A network that bills per impression and hides the running total
-     is a trap, so the total is pinned above everything else.
+     Left: the lockup — the mark, the wordmark, and the epoch on an eyebrow
+     under it. Centre: what this session has cost, in euros. Right: who you
+     are. A network that bills per impression and hides the running total is a
+     trap, so the total is pinned above everything else.
+
+     Three children, and it stays three: .app-header__row is what style.css
+     lays out, and at phone width a fourth would have nowhere to go.
      ═══════════════════════════════════════════════════════════════════════ -->
 <header class="app-header">
   <div class="column app-header__row">
 
+    <!-- The lockup: the mark, the wordmark in Michroma, and one eyebrow line
+         under it. The eyebrow carries the epoch and not a slogan, because the
+         epoch is the single number that says which rulebook every figure on
+         this screen was computed under — and until now it was four scrolls
+         deep in the wallet, where nobody would look before spending. It is
+         the same node, moved: #edition-epoch, written by the same one line.
+
+         The svg carries width and height as attributes as well as classes.
+         Any rule in style.css overrides them, but with no stylesheet at all a
+         viewBox-only <svg> falls back to 300x150, so the attributes are what
+         stop the mark filling the screen in the moment before the CSS lands.
+
+         aria-label names this link, and an aria-label replaces the contents
+         of the element entirely, so the epoch ticking inside it never becomes
+         part of the name of a link to the home page. -->
     <a class="brand" href="./" aria-label="Peer two Peer — home">
-      <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-        <rect x="3" y="3" width="16" height="16" fill="currentColor"/>
-        <rect x="12" y="12" width="17" height="17" fill="none" stroke="currentColor" stroke-width="3"/>
-      </svg>
-      <span>PTP</span>
+      <svg class="mark" width="34" height="49" viewBox="-10 0 620 890" aria-hidden="true" focusable="false"><use href="#enMark"></use></svg>
+      <span class="brand__text">
+        <span class="brand__name">PEER TWO PEER</span>
+        <span class="brand__eyebrow">epoch <span id="edition-epoch" class="num">—</span></span>
+      </span>
     </a>
 
     <!-- A button is a hostile place for anything but text, in two ways, and
@@ -179,12 +255,19 @@
         </svg>
         <span>back</span>
       </button>
+      <!-- The author's avatar, next to the author's name. It is decorative:
+           the handle is right beside it and says the same thing in words, so
+           the circle is hidden from assistive technology rather than given a
+           label that would be read twice. -->
+      <span class="avatar" aria-hidden="true">
+        <svg class="mark" width="16" height="23" viewBox="-10 0 620 890" focusable="false"><use href="#enMark"></use></svg>
+      </span>
       <!-- .truncate makes this heading clip its overflow, and the only thing
            inside it is a focusable link whose ring is drawn outside its box, so
            the heading would clip the ring off the one element a keyboard user
            has to find here. .view-head__title pushes the clip box out by exactly
            the ring's reach and pulls the layout back with an equal negative
-           margin — see section 11 of style.css. The three classes are one
+           margin — the rule that does it is in style.css. The three classes are one
            mechanism each: grow shrinks the heading, truncate clips a long
            handle, view-head__title lets the ring through the clip. -->
       <h1 id="post-heading" class="grow truncate view-head__title">
@@ -481,8 +564,20 @@
 
     <!-- ── who you are ── -->
     <p class="label">account</p>
-    <p id="wallet-addr" class="addr truncate">not connected</p>
-    <p id="wallet-handle" class="meta">no handle</p>
+    <!-- The same avatar as a feed card's, one size up, against your own
+         address. The two paragraphs inside are unchanged and are still
+         paragraphs: wrapped in a node style.css has not styled yet they
+         stack, which is what they did before, so a stylesheet that never
+         reaches .wallet-id leaves this block readable rather than broken. -->
+    <div class="wallet-id">
+      <span class="avatar" aria-hidden="true">
+        <svg class="mark" width="22" height="32" viewBox="-10 0 620 890" focusable="false"><use href="#enMark"></use></svg>
+      </span>
+      <div class="wallet-id__text">
+        <p id="wallet-addr" class="addr truncate">not connected</p>
+        <p id="wallet-handle" class="meta">no handle</p>
+      </div>
+    </div>
     <button type="button" id="wallet-connect" class="btn btn--wide" data-act="connect">connect a wallet</button>
 
     <hr class="rule">
@@ -621,10 +716,13 @@
     <hr class="rule">
 
     <!-- ── what the app is running on: the edition it can prove ── -->
+    <!-- The epoch used to be the third row here. It is now the header's
+         eyebrow, on every screen, because it is the number that dates every
+         other number in the app and it should not have to be looked up. The
+         node itself did not change — #edition-epoch, same id, same write. -->
     <dl class="receipt" id="wallet-editions">
       <div><dt class="k">rulebook edition</dt><dd class="v mono truncate" id="edition-replay">—</dd></div>
       <div><dt class="k">distribution</dt><dd class="v mono truncate" id="edition-rules">—</dd></div>
-      <div><dt class="k">epoch</dt><dd class="v num" id="edition-epoch">—</dd></div>
       <div><dt class="k">EUR/BTC sealed</dt><dd class="v num" id="edition-oracle">—</dd></div>
     </dl>
 
@@ -691,9 +789,25 @@
 
 <template id="tpl-card">
   <article class="card" data-pid="" tabindex="-1" aria-labelledby="">
+    <!-- The card head, in the shape the design gives it: an avatar circle
+         carrying the mark, the handle stacked over the address it belongs to,
+         and the figure — what one impression of this picture costs — pushed
+         to the right and set in the serif.
+
+         .card__avatar and .card__who are the two nodes this row gained. They
+         are structure and carry nothing: app.mjs still addresses the handle,
+         the address and the price by the three classes that were always here,
+         and nesting them inside a wrapper does not change a querySelector.
+         The avatar is aria-hidden because the handle beside it already names
+         the author, and a labelled circle would say it a second time. -->
     <div class="card__head">
-      <a class="card__author" href="#" data-act="open-author">—</a>
-      <span class="card__addr addr"></span>
+      <span class="card__avatar avatar" aria-hidden="true">
+        <svg class="mark" width="15" height="22" viewBox="-10 0 620 890" focusable="false"><use href="#enMark"></use></svg>
+      </span>
+      <span class="card__who">
+        <a class="card__author" href="#" data-act="open-author">—</a>
+        <span class="card__addr addr"></span>
+      </span>
       <span class="card__price money" data-dust="0">—</span>
     </div>
 
@@ -796,7 +910,24 @@
        app by reading [data-act] — resolve it with
        event.target.closest('[data-act]'), never with event.target itself.
        Every control in this document wraps an <svg> or a <span>, so the event
-       target is normally a child of the element carrying the attribute.
+       target is normally a child of the element carrying the attribute. Some
+       of those children are now <use> elements inside an <svg>; .closest()
+       is defined on SVG elements too, so the same resolution still works.
+     · Two nodes at the top of the body are furniture and belong to the
+       stylesheet alone. app.mjs must not read, write, move or remove either.
+         .glow      four empty spans, and exactly four. style.css builds the
+                    drifting blobs out of them and stops all four under
+                    prefers-reduced-motion. Adding a fifth silently gets no
+                    gradient; removing one leaves a hole in the corner.
+         #enMark    the one <symbol> every mark in the app points at, inside
+                    an <svg width="0" height="0">. It must not be hidden with
+                    [hidden] or display:none — a hidden subtree stops <use>
+                    resolving, and every mark in the app disappears at once.
+                    To draw the mark anywhere new, copy the four-attribute
+                    pattern used here: class, width, height, viewBox
+                    "-10 0 620 890", then <use href="#enMark">. The head
+                    silhouette is currentColor and takes the colour of its
+                    context; the lattice carries its own #4CFF8F.
      · Show and hide with the `hidden` attribute — every view, empty state,
        notice and optional control is styled for it. Live regions are the
        exception, because [hidden] is exactly what silences them: see
@@ -810,6 +941,13 @@
        core/pricing.mjs formatEur(). Never format euros in app.mjs.
      · Counters carry class "num" and are set to a decimal string rendered
        from a BigInt. No Number() on a balance, ever.
+     · Those two classes now carry the design as well as the contract: "money"
+       and "num" are what set a figure in Instrument Serif over the Outfit the
+       words are in, which is the whole point of the pairing — a figure in
+       this network is a claim about money and should not look like a label.
+       A number written into a node that carries neither class is set in the
+       body face and stops reading as a figure, so add the class rather than
+       inventing a new one when a new number appears.
      · A control that is waiting on the network carries data-busy while the act
        is in flight. PRESENCE is the state, not the value — the stylesheet
        matches .btn[data-busy] — so set it to the empty string and REMOVE it
@@ -891,6 +1029,19 @@
        settle · cap-claim · close-toast
 
      ── header ─────────────────────────────────────────────────────────────
+       .brand                 the lockup, and a link to the home page. It
+                              holds the mark, .brand__name (the wordmark, set
+                              in Michroma and in no other typeface anywhere in
+                              the app) and .brand__eyebrow. Its aria-label is
+                              its whole accessible name — contents do not
+                              contribute — so the epoch inside it is never
+                              read as part of the link.
+       #edition-epoch         the epoch, in the header eyebrow. It MOVED here
+                              out of the wallet's #wallet-editions list, where
+                              it was the third row of four. Same id, same
+                              write, same formatCount() string: nothing in
+                              app.mjs changes, and the number that dates every
+                              other figure in the app is now on every screen.
        #meter                 button, opens the wallet. Its accessible name is
                               "session <amount>", computed from its contents.
        #meter-help            the meter's description, reached by
@@ -983,6 +1134,14 @@
                                      (author-<pid> is fine) and point the
                                      article's aria-labelledby at that id;
                                      both ship empty for you to fill
+       .card__avatar .card__who      structure the head row gained with the
+                                     round card: the mark's circle, and the
+                                     wrapper that stacks the handle over the
+                                     address. Nothing binds to them. They are
+                                     listed so it is clear the two nodes below
+                                     are now nested rather than siblings —
+                                     which changes no querySelector, because
+                                     every lookup here runs from .card.
        .card__author  .card__addr
        .card__price                  price per view; data-dust="1" when the
                                      nanoeuro price truncates to 1 wei,
@@ -1065,7 +1224,10 @@
        #burn-error          refusal slot — insert a filled #tpl-toast clone
        #cap-pledged #cap-proven #cap-pot #cap-claimable #cap-claim
        #cap-pledge-form #cap-pledge-mb #cap-pledge-endpoint #cap-pledge-submit
-       #edition-replay #edition-rules #edition-epoch #edition-oracle
+       #edition-replay #edition-rules #edition-oracle
+                      #edition-epoch is NOT here any more — it is the header's
+                      eyebrow. Still one node, still one write; only its place
+                      on the screen changed.
 
      ── register sheet ─────────────────────────────────────────────────────
        #sheet-register #register-session (.session-total)
@@ -1111,9 +1273,16 @@
        parameter, open the matching dialog, and then remove it with
        history.replaceState so a reload does not reopen the sheet.
 
-     ── optional ───────────────────────────────────────────────────────────
-       <html data-theme="dark" | "light">  forces the inversion; absent means
-       the device decides. Nothing else in the app reads it.
+     ── there is no light mode ─────────────────────────────────────────────
+       <html data-theme> is gone, and app.mjs must not write it. The interface
+       is dark green at every setting: there is no second palette to switch
+       to, so an attribute that "forces the inversion" would name a state that
+       does not exist. <meta name="color-scheme" content="dark"> in the head
+       is the whole of it, and it tells the browser to draw its own form
+       controls and scrollbars dark rather than assume a white page.
+       The one device preference this app still answers is
+       prefers-reduced-motion, which stops the glow, and it is answered in
+       style.css. Nothing about it is app.mjs's to set.
      ═══════════════════════════════════════════════════════════════════════ -->
 
 </body>

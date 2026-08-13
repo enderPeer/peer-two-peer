@@ -586,6 +586,51 @@ const CONTENT_TYPES = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  // The three vendored typefaces. Browsers sniff the wOF2 magic bytes and
+  // honour the format() hint, so these load either way — but the preload links
+  // in index.html declare type="font/woff2", and a preload whose declared type
+  // disagrees with the served one can be dropped and then fetched again.
+  '.woff2': 'font/woff2',
+};
+
+/**
+ * Headers on every static response.
+ *
+ * The app makes a promise — no CDN, no remote font, no third-party anything, so
+ * a reader's address is never handed to a party that is not part of this
+ * network. Until now that promise held because the files happen to contain no
+ * remote references, which is a property somebody has to keep re-verifying and
+ * which one careless edit undoes silently.
+ *
+ * `default-src 'self'` makes the browser enforce it instead. A stylesheet that
+ * grew a font-CDN import, an <img> pointed at a tracker, a script from
+ * anywhere: all refused at the client, visibly, rather than shipped. The one
+ * thing deliberately widened is `img-src`, which also allows `data:` and `blob:`
+ * — the composer previews a picture the user just chose from a blob URL, and the
+ * icons are data URIs.
+ *
+ * `connect-src` is the exception that has to stay open: the client is SUPPOSED
+ * to talk to a host it learns from host.json, and that host is a different
+ * origin (a tunnel, a mirror, whatever the address book names today). Pinning it
+ * would be pinning the network to one machine, which is the opposite of the
+ * design. So this policy stops the page fetching CODE and ASSETS from anywhere
+ * but here, and does not pretend to constrain which host it asks for the record.
+ */
+const SECURITY_HEADERS = {
+  'content-security-policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'", // the shell carries a few inline styles
+    "font-src 'self'",
+    "img-src 'self' data: blob:",
+    "connect-src *", // the writer is wherever the address book says it is
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "object-src 'none'",
+  ].join('; '),
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1269,6 +1314,7 @@ export async function createServer(options = {}) {
       'content-type': CONTENT_TYPES[extname(file).toLowerCase()] || 'application/octet-stream',
       'content-length': bytes.length,
       'cache-control': 'no-cache',
+      ...SECURITY_HEADERS,
       ...CORS,
     });
     res.end(req.method === 'HEAD' ? undefined : bytes);

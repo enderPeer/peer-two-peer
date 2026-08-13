@@ -253,19 +253,25 @@ times in it, all three in comments explaining why there are none.
 
 ## 7. Dark
 
-`prefers-color-scheme: dark` swaps `--ink` and `--paper`. The same two
-colours, exchanged. The grey tokens move with the background so that a
-hairline stays a hairline and disabled text keeps its contrast ratio.
+**Dark is the design, not a mode.** There is no inversion and no light theme.
+Under `prefers-color-scheme: light` the app stays exactly this app and only
+raises contrast a step — `--mute` lightens, the edges and dividers strengthen,
+and `--glow-strength` drops to `.78` so the wash cannot lift the ground under a
+paragraph as far in a bright room. Every ratio on that path improves; the worst
+body text on it is 6.82:1.
 
-No component in the stylesheet knows the theme exists. Everything paints
-`var(--ink)` on `var(--paper)` and is correct in both directions by
-construction. `[data-theme="dark"]` and `[data-theme="light"]` on `<html>`
-override the device preference in either direction, so an in-app switch can be
-added later without touching a single component.
+`color-scheme: dark` is declared unconditionally, so the platform's own form
+controls, scrollbars and text-selection colours match the app instead of
+fighting it.
 
-`color-scheme: light dark` is declared, so the platform's own form controls,
-scrollbars and text-selection colours invert with the app instead of fighting
-it.
+**There is no `[data-theme]` hook, and there was never a switch.** The
+stylesheet carried `:root[data-theme="light"]` and `:root[data-theme="dark"]`
+blocks whose own comment claimed the attribute was in `index.html`'s hook
+contract. The contract says the opposite: it removed `<html data-theme>` and
+forbids `app.mjs` from writing it. Nothing in `app/`, `core/` or `server/` sets
+it, so both blocks were unmatchable — which is worse than absent, because a rule
+that cannot fire still reads as a working override and invites the next change
+to be made inside it. They are gone. The media query is the whole mechanism.
 
 ---
 
