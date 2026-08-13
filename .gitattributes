@@ -1,0 +1,27 @@
+# Line endings are consensus here, not preference.
+#
+# core/replay.mjs reports EDITION as the sha256 of its own bytes, every epoch
+# block seals that digest, and the browser is served the same file so a reader
+# can check the copy they were handed against the copy that computed the state.
+# All three of those break if the bytes differ — and on Windows they did:
+# core.autocrlf rewrote the working tree to CRLF while the published site carried
+# LF, so the same file hashed two ways. 366 bytes of difference in one module,
+# and the chain would have reported edition drift forever without either copy
+# being wrong about anything a human could see.
+#
+# So text is LF in the repository and LF in the working tree, on every platform.
+# This is not a style rule; it is the rule that makes "the same file" true.
+* text=auto eol=lf
+
+# Bytes that are bytes. Never touched, never normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gz binary
+*.car binary
+*.ots binary
+
+# The act log and the sealed chain are hashed line by line. A newline rewritten
+# here is a root that no longer verifies.
+*.jsonl -text

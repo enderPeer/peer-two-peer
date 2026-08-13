@@ -1,0 +1,1204 @@
+/* ==========================================================================
+   Peer two Peer — the whole design system, one file.
+
+   Two colours: ink and paper. Grey exists only for hairlines and for things
+   that cannot be pressed. Colour appears nowhere except inside the pictures,
+   because the interface is the frame and the photograph is the content.
+
+   The layout is a single column of phone width. The desktop does not reflow
+   it; the desktop only puts more paper around it and draws a hairline where
+   the column ends. One implementation, one shape, every screen.
+
+   No !important anywhere. No external asset of any kind — no font, no icon
+   sprite, no CDN. Every glyph in this app is a real character or an inline
+   SVG authored in the markup.
+
+   Sections
+     1  Reset
+     2  Tokens
+     3  Dark inversion
+     4  Base typography
+     5  The column and the frame around it
+     6  Header, meter, wallet chip
+     7  Bottom bar
+     8  Feed cards
+     9  The picture frame
+    10  Action bar
+    11  Post detail and comments
+    12  Sheets (native <dialog>)
+    13  Forms
+    14  Buttons
+    15  Toasts
+    16  Skeletons, empty states, banners
+    17  Utilities
+    18  Reduced motion
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1  RESET
+   Only what we actually need. A reset that rewrites the platform's scrolling
+   or its form controls is a reset that fights the phone, and the phone wins.
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body,
+h1, h2, h3, h4, p, figure, blockquote, dl, dd,
+ul, ol, fieldset, legend { margin: 0; padding: 0; }
+
+ul[role="list"], ol[role="list"] { list-style: none; }
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+
+input, button, textarea, select { font: inherit; color: inherit; }
+
+button { background: none; border: 0; }
+
+fieldset { border: 0; min-width: 0; }
+
+table { border-collapse: collapse; }
+
+:target { scroll-margin-top: calc(var(--header-h) + var(--s-4)); }
+
+
+/* --------------------------------------------------------------------------
+   2  TOKENS
+   The two colours are custom properties so the dark inversion below can be a
+   single rule. Everything else — space, type, the hairline, the one motion
+   duration — is a token too, so that a change is a change everywhere.
+
+   --motion is the only timing value in the file. Every transition and every
+   animation reads it. Setting it to 0s (see section 18) removes motion from
+   the app without a single !important and without touching any component.
+   -------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  /* the two colours */
+  --ink:    #000;
+  --paper:  #fff;
+
+  /* grey, in three roles and no others.
+
+     --hair is decoration and lands at 1.43:1 on paper (1.66:1 on ink). That is
+     deliberate and it is why nothing drawn in --hair may be the only carrier of
+     information: every rule, frame and separator it draws is duplicated by
+     position, spacing or a word. A hairline you cannot see costs you nothing.
+
+     --mute is the opposite: it is read. 5.33:1 on paper, 7.56:1 on ink, both
+     above the 4.5:1 body-text floor. It is also what draws the OUTLINE of a
+     disabled control — see section 14. Those outlines used to be --hair, which
+     put the edge of a control at 1.43:1, and the edge of a control is how you
+     find out the control is there at all. */
+  --hair:   #d8d8d8;   /* rules, borders, frames — decoration, never text  */
+  --mute:   #6b6b6b;   /* disabled + secondary text and edges — 5.33:1     */
+  --fill:   #f0f0f0;   /* skeleton bodies: the absence of content         */
+  --scrim:  rgb(0 0 0 / .55);  /* behind a sheet; always black, both themes */
+
+  /* geometry */
+  --col:       480px;  /* the column. the phone is the format, everywhere. */
+  --hairline:  1px;
+  --radius:    0;      /* hard edges. this is print, not plastic.          */
+  --tap:       44px;   /* minimum interactive target, both axes            */
+  --header-h:  52px;
+  --bar-h:     56px;
+
+  /* the focus ring, in three numbers rather than in four literals scattered
+     across the file. --ring-reach is how far outside an element's border box
+     the ring paints, and anything that clips its own children has to know that
+     figure: see .view-head__title in section 11, which pushes its clip box out
+     by exactly this much so the ring on the link inside it survives. Deriving
+     it means the clip and the ring cannot drift apart. */
+  --ring:       2px;                                  /* outline width      */
+  --ring-gap:   2px;                                  /* outline offset     */
+  --ring-reach: calc(var(--ring) + var(--ring-gap));  /* total, 4px         */
+
+  /* spacing scale */
+  --s-1: .25rem;
+  --s-2: .5rem;
+  --s-3: .75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+
+  /* type scale */
+  --f-1: .6875rem;   /* labels, counters                       */
+  --f-2: .75rem;     /* meta lines                             */
+  --f-3: .875rem;    /* secondary body                         */
+  --f-4: 1rem;       /* body                                   */
+  --f-5: 1.125rem;   /* card price, sheet titles               */
+  --f-6: 1.375rem;   /* view titles                            */
+  --f-7: 1.75rem;    /* balances                               */
+
+  /* type stacks: system only, so nothing is fetched and nothing is tracked */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* motion */
+  --motion: 140ms;
+  --ease:   cubic-bezier(.2, 0, 0, 1);
+}
+
+
+/* --------------------------------------------------------------------------
+   3  DARK INVERSION
+   The same two colours, swapped. Nothing else in the file knows about theme:
+   every component paints with var(--ink) on var(--paper) and is correct in
+   both. The grey tokens move with the background so a hairline stays a
+   hairline and disabled text keeps its contrast ratio.
+
+   prefers-color-scheme is the signal; [data-theme] on <html> overrides it in
+   both directions, so an in-app switch is possible without new components.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:   #fff;
+    --paper: #000;
+    --hair:  #333;
+    --mute:  #9b9b9b;
+    --fill:  #1a1a1a;
+    --scrim: rgb(0 0 0 / .72);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink:   #fff;
+  --paper: #000;
+  --hair:  #333;
+  --mute:  #9b9b9b;
+  --fill:  #1a1a1a;
+  --scrim: rgb(0 0 0 / .72);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink:   #000;
+  --paper: #fff;
+  --hair:  #d8d8d8;
+  --mute:  #6b6b6b;
+  --fill:  #f0f0f0;
+  --scrim: rgb(0 0 0 / .55);
+}
+
+
+/* --------------------------------------------------------------------------
+   4  BASE TYPOGRAPHY
+   Money is set in tabular figures everywhere it appears, so a meter that ticks
+   up does not shuffle the characters beside it. Addresses and content
+   identifiers are set in the system monospace: they are strings to be compared
+   by eye, not words to be read.
+   -------------------------------------------------------------------------- */
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--f-4);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* the platform owns the scroll. we never intercept wheel or touch. */
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3 { font-weight: 650; line-height: 1.25; letter-spacing: -.01em; }
+h1 { font-size: var(--f-6); }
+h2 { font-size: var(--f-5); }
+h3 { font-size: var(--f-4); }
+
+a { color: inherit; text-decoration-thickness: from-font; text-underline-offset: .15em; }
+
+small, .meta { font-size: var(--f-2); color: var(--mute); }
+
+/* `time` is deliberately not in this list: the app ships no <time> element and
+   may not grow one. An expiry and a comment timestamp have no value while the
+   shell is loading, and a <time> has no conformant way to say so — the note at
+   #post-expiry in index.html carries the whole argument. Those two get the same
+   figures from their own rules in sections 8 and 11. */
+.num, output, .money {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.mono, .addr, .cid {
+  font-family: var(--mono);
+  font-size: .9em;
+  letter-spacing: -.01em;
+}
+
+.label {
+  font-size: var(--f-1);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+/* Focus is never removed, only replaced — and the replacement is two rings,
+   not one.
+
+   A single ink ring is invisible the moment it is drawn on ink, and this app
+   has ink surfaces on purpose: the offline banner, every toast, a primary
+   button, the selected half of a segmented control. Under the dark inversion
+   --ink is white and those same surfaces are white, so the failure simply
+   changes which theme it happens in. It never goes away.
+
+   So the ring is paper immediately around the element and ink immediately
+   outside that. Whatever the element is sitting on is one of those two
+   colours, so one of the two rings is always at 21:1 against it and the whole
+   ring is always at 21:1 against the other half of itself. Both rings invert
+   together, so this holds in light and in dark without a second rule.
+
+   The box-shadow fills the gap the outline is offset by; nothing in this
+   stylesheet uses box-shadow for anything else, so there is nothing to
+   collide with. Both halves are drawn from the ring tokens, so the ring's
+   reach outside the element — --ring-reach — is a number the rest of the file
+   can be built against rather than a coincidence. */
+:focus-visible {
+  outline: var(--ring) solid var(--ink);
+  outline-offset: var(--ring-gap);
+  box-shadow: 0 0 0 var(--ring-gap) var(--paper);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+::selection { background: var(--ink); color: var(--paper); }
+
+
+/* --------------------------------------------------------------------------
+   5  THE COLUMN AND THE FRAME AROUND IT
+   .column is the phone. It never changes width beyond 480px, on any screen.
+   The only thing a breakpoint does is colour in the vertical hairlines that
+   mark where the column stops — the frame around the page, never the page.
+   -------------------------------------------------------------------------- */
+
+.column {
+  width: 100%;
+  max-width: var(--col);
+  margin-inline: auto;
+  /* the hairline exists at every width; it is only visible on wide screens,
+     so the column's inner geometry is identical on a phone and on a desk. */
+  border-inline: var(--hairline) solid transparent;
+}
+
+@media (min-width: 560px) {
+  .column { border-inline-color: var(--hair); }
+}
+
+.app-main {
+  /* room for the fixed bottom bar plus whatever the device eats below it */
+  padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom) + var(--s-4));
+  min-height: 100dvh;
+}
+
+.view { display: block; }
+.view[hidden] { display: none; }
+
+
+/* --------------------------------------------------------------------------
+   6  HEADER, METER, WALLET CHIP
+   The meter is not a feature, it is a safeguard. A network that bills per
+   impression and hides the running total is a trap, so the euro figure is
+   pinned to the top of the screen and is never scrolled away. It is a button:
+   pressing it opens the wallet, where the same number is broken down.
+   -------------------------------------------------------------------------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  border-bottom: var(--hairline) solid var(--hair);
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Scoped to its own class rather than to `.app-header .column`, because a
+   descendant selector would out-specify [hidden] and pin open every other
+   column-width child of the header — the offline banner among them. Component
+   display rules stay at one class of specificity so that hiding always wins. */
+.app-header__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--header-h);
+  padding-inline: var(--s-3);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  gap: var(--s-2);
+  font-weight: 700;
+  font-size: var(--f-3);
+  letter-spacing: .04em;
+  text-decoration: none;
+}
+.brand svg { width: 18px; height: 18px; }
+
+/* the meter itself: a label nobody has to learn and a figure that only grows */
+.meter {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding-inline: var(--s-2);
+  cursor: pointer;
+  border: var(--hairline) solid transparent;
+}
+.meter:hover { border-color: var(--hair); }
+.meter__label { font-size: var(--f-1); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.meter__value { font-size: var(--f-4); font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* a spend that just changed gets one blink of inverted ink, then settles */
+.meter__value.is-ticked { animation: tick var(--motion) var(--ease) 2 alternate; }
+
+@keyframes tick {
+  from { background: transparent; color: var(--ink); }
+  to   { background: var(--ink);  color: var(--paper); }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--tap);
+  padding: 0 var(--s-2);
+  border: var(--hairline) solid var(--ink);
+  font-size: var(--f-2);
+  cursor: pointer;
+  max-width: 12ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chip[data-state="anon"] { border-color: var(--mute); color: var(--mute); }
+
+/* connection state: a word, not a coloured dot. red and green are colours. */
+.netstate { font-size: var(--f-1); text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
+.netstate[data-state="offline"] { color: var(--ink); text-decoration: underline; }
+
+
+/* --------------------------------------------------------------------------
+   7  BOTTOM BAR
+   Three destinations, thumb height, safe-area aware. Fixed rather than sticky
+   so the feed scrolls under it instead of pushing it around.
+   -------------------------------------------------------------------------- */
+
+.app-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--paper);
+  border-top: var(--hairline) solid var(--hair);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-bar__row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  min-height: var(--bar-h);
+}
+
+.app-bar button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap);
+  font-size: var(--f-1);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--mute);
+  cursor: pointer;
+}
+.app-bar button svg { width: 20px; height: 20px; }
+.app-bar button[aria-current="page"] { color: var(--ink); font-weight: 650; }
+
+
+/* --------------------------------------------------------------------------
+   8  FEED CARDS
+   content-visibility lets the browser skip the layout and paint of every card
+   that is off screen, which is what keeps a long feed at 60 fps on a cheap
+   phone. contain-intrinsic-size gives it a believable guess for the height it
+   is skipping, so the scrollbar does not jump when cards are rendered for the
+   first time.
+   -------------------------------------------------------------------------- */
+
+.feed { display: block; }
+
+.card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 560px;
+  border-bottom: var(--hairline) solid var(--hair);
+  padding-bottom: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  min-height: var(--tap);
+}
+
+/* The author link is a standalone target, not a link inside a sentence, so
+   WCAG 2.5.8's inline-text exemption does not cover it and it has to hold the
+   44px floor on its own. It was 21px tall — the line box of --f-3 text — while
+   the row around it was 44px, which measures the row rather than the thing you
+   have to hit. inline-flex is what lets a min-height apply to a link at all.
+
+   Consequence to keep in mind: in the detail view this link fills its heading
+   exactly, and that heading clips, so .view-head__title in section 11 exists to
+   let the focus ring out. Changing this height changes nothing there — the room
+   is derived from --ring-reach, not from this box — but removing the min-height
+   would put the target back under the floor. */
+.card__author {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-weight: 650;
+  font-size: var(--f-3);
+  text-decoration: none;
+}
+.card__addr   { color: var(--mute); font-size: var(--f-2); }
+
+/* price per view sits in the head, beside the name — never in a tooltip,
+   never behind a tap. You see what an impression costs before you cause one. */
+.card__price {
+  margin-inline-start: auto;
+  font-size: var(--f-3);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.card__price[data-dust="1"]::after {
+  content: "·dust";
+  font-size: var(--f-1);
+  font-weight: 400;
+  color: var(--mute);
+}
+
+/* Time to expiry: a post is a lease, and the lease is on the card. A span and
+   not a <time>, because it has to exist before its value does; it carries the
+   instant in data-ends and the state in data-state once app.mjs has both. */
+.card__expiry {
+  font-size: var(--f-2);
+  color: var(--mute);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.card__expiry[data-state="settled"] { color: var(--ink); text-decoration: line-through; }
+
+.card__foot {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 0 var(--s-3);
+  font-size: var(--f-2);
+  color: var(--mute);
+}
+
+
+/* --------------------------------------------------------------------------
+   9  THE PICTURE FRAME
+   Every frame reserves its aspect ratio from the post's own metadata (w and h
+   travel in the act, so they are known before a single byte of the picture
+   is fetched). Nothing shifts when the bytes arrive. That is the whole trick,
+   and it costs one custom property.
+   -------------------------------------------------------------------------- */
+
+.frame {
+  position: relative;
+  aspect-ratio: var(--ar, 4 / 5);
+  background: var(--paper);
+  border-block: var(--hairline) solid var(--hair);
+  overflow: hidden;
+}
+
+/* The reveal is driven by the presence of [src], not by a class the app has
+   to remember to add: an image whose source is set always becomes visible,
+   even if the script that set it never hears back. The optional .is-loaded
+   class does the same thing for callers that prefer to wait on decode(). */
+.frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--motion) linear;
+}
+.frame img[src],
+.frame img.is-loaded { opacity: 1; }
+
+/* The redacted state: a settled post's picture is gone from every node, and the
+   frame says so rather than showing a broken image icon.
+
+   The centring is done on the pseudo-element, not on .frame. This rule used to
+   set `display: grid` on `.frame[data-redacted="1"]`, which is two units of
+   specificity — enough to out-rank `[hidden]` and pin a redacted frame open
+   even when the app had hidden it. That is the same class of defect that once
+   pinned the offline banner open. Component display rules stay at one class of
+   specificity in this file so that hiding always wins. */
+.frame[data-redacted="1"] { background: var(--fill); }
+.frame[data-redacted="1"]::after {
+  content: "settled · payload redacted";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: var(--s-3);
+  font-size: var(--f-2);
+  color: var(--mute);
+}
+
+/* the impression marker: a hairline that fills while the billable dwell runs,
+   so nobody is ever billed by something they could not see happening. */
+.frame__dwell {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(var(--dwell, 0));
+  transform-origin: left;
+  transition: transform var(--motion) linear;
+}
+
+
+/* --------------------------------------------------------------------------
+   10  ACTION BAR
+   Counts are part of the label, not a badge: "like 12" reads aloud correctly
+   and needs no separate accessible name. Every target is at least 44px.
+   -------------------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-2) var(--s-1);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 var(--s-2);
+  justify-content: center;
+  font-size: var(--f-3);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border: var(--hairline) solid transparent;
+}
+.action:hover { border-color: var(--hair); }
+.action svg { width: 18px; height: 18px; }
+.action[aria-pressed="true"] { font-weight: 700; }
+.action[aria-pressed="true"] svg { fill: var(--ink); }
+.action[disabled] { color: var(--mute); cursor: not-allowed; }
+.action[disabled] svg { stroke: var(--mute); }
+
+.action--views { margin-inline-start: auto; color: var(--mute); cursor: default; }
+.action--views:hover { border-color: transparent; }
+
+
+/* --------------------------------------------------------------------------
+   11  POST DETAIL AND COMMENTS
+   The detail view is the same column with the numbers unfolded: the euro
+   figures a post has drawn, the views behind them, and the lease it is on.
+   -------------------------------------------------------------------------- */
+
+.view-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  min-height: var(--tap);
+  border-bottom: var(--hairline) solid var(--hair);
+}
+
+/* The detail heading carries .truncate, so a long handle is clipped instead of
+   pushing the state label off the row — and .truncate is overflow:hidden, which
+   clips to the PADDING box. The only thing inside this heading is #post-author,
+   a link that now holds the 44px target on its own, so the heading's box ends up
+   exactly the link's box: flush on the left where the text starts and 44px tall
+   because the link is. A focus ring paints --ring-reach outside the link, which
+   put the whole ring outside the clip. The one element a keyboard user has to
+   find on this screen was the one element whose ring was cut off.
+
+   Pushing the padding out by --ring-reach moves the clip out by the same amount
+   the ring reaches, and an equal negative margin gives the space straight back,
+   so nothing on the row moves: the heading's content box, the text in it and the
+   ellipsis all sit where they did. The ring is then drawn inside the clip, and
+   the negative margin lets it paint over the flex gap beside it, which is empty
+   paper. Both figures come from the same token, so they cannot drift apart.
+
+   The alternatives were worse. Dropping .truncate lets a long handle overflow the
+   row; shrinking the link gives up the tap target; drawing this ring inward, as
+   .segmented does, would put it on top of the first characters of the name.
+
+   One case this cannot serve, stated so nobody hunts for it: when the handle is
+   long enough to truncate, the link's own box continues past the clip, so the
+   ring is cut on that edge along with the text. Three sides of a ring is what
+   truncation costs. Everything short enough to fit gets the whole ring. */
+.view-head__title {
+  padding: var(--ring-reach);
+  margin: calc(var(--ring-reach) * -1);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hairline);
+  background: var(--hair);
+  border-block: var(--hairline) solid var(--hair);
+  margin-block: var(--s-4);
+}
+.stats > div {
+  background: var(--paper);
+  padding: var(--s-3);
+}
+.stats dt { font-size: var(--f-1); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.stats dd { font-size: var(--f-5); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.section-title { margin-block: var(--s-5) var(--s-2); }
+
+/* #comment-list is an <ol role="list"> whose rows are <li class="comment-item">
+   wrapping an <article class="comment">. The reset already strips the markers
+   and the padding for a list carrying role="list"; the rest of this block is
+   unchanged, because the article still draws the row. */
+.comments { display: block; padding: 0 var(--s-3); margin-top: var(--s-3); }
+.comment-item { display: block; }
+.comment {
+  padding: var(--s-3) 0;
+  border-top: var(--hairline) solid var(--hair);
+}
+.comment__head { display: flex; gap: var(--s-2); align-items: baseline; font-size: var(--f-2); }
+.comment__author { font-weight: 650; color: var(--ink); }
+.comment__at { color: var(--mute); margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.comment__text { font-size: var(--f-3); white-space: pre-wrap; }
+
+/* the tombstone: what survives deletion, printed plainly */
+.tombstone {
+  margin: var(--s-4) var(--s-3);
+  border: var(--hairline) solid var(--hair);
+  padding: var(--s-3);
+  font-family: var(--mono);
+  font-size: var(--f-2);
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+
+/* --------------------------------------------------------------------------
+   12  SHEETS
+   Native <dialog>. The platform gives us the focus trap, the Escape key, the
+   inertness of the page behind and the top layer for free; reimplementing any
+   of that in JavaScript would be worse in every browser.
+
+   A sheet rises from the bottom on a phone and stays the same width as the
+   column on a desktop, because the desktop is the phone.
+   -------------------------------------------------------------------------- */
+
+.sheet {
+  width: 100%;
+  max-width: var(--col);
+  max-height: 88dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: var(--hairline) solid var(--hair);
+  border-bottom: 0;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;            /* dialog is display:none until open; :open wins */
+  flex-direction: column;
+}
+.sheet:not([open]) { display: none; }
+.sheet[open] { animation: sheet-in var(--motion) var(--ease); }
+.sheet::backdrop { background: var(--scrim, rgb(0 0 0 / .55)); }
+
+@keyframes sheet-in {
+  from { transform: translateY(2rem); }
+  to   { transform: translateY(0); }
+}
+
+/* The head stays on screen while the sheet's contents scroll, and the column
+   flex layout is what does it — not stickiness. This rule carried
+   `position: sticky; top: 0` and a comment crediting it, and both were wrong:
+   sticky only does something inside a scrolling ancestor, and the head has none.
+   The scroller is .sheet__body, which is the head's SIBLING, and .sheet itself
+   never scrolls — it is a column flex container with a max-height.
+
+   The real mechanism: .sheet is a fixed-height column, .sheet__body is a scroll
+   container, and a scroll container's automatic minimum size is zero, so the
+   body is the only item that can absorb the overflow. `flex: none` here states
+   the other half of that out loud — the head keeps its own height, the body
+   takes every pixel that is left and scrolls inside it. The head is therefore
+   never scrolled, because it is not in the thing that scrolls. */
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-bottom: var(--hairline) solid var(--hair);
+  flex: none;
+  background: var(--paper);
+}
+/* The title yields first when the head is tight. The meter never yields, and
+   the close button never yields; between them they are about 160px, so on the
+   narrowest phone the title truncates rather than the row overflowing. Nothing
+   in this app is allowed to scroll the page sideways. */
+.sheet__title {
+  font-size: var(--f-5);
+  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The meter, restated inside every sheet.
+
+   The header meter is real and sticky, but a <dialog> opened with showModal()
+   puts a backdrop over it and makes it inert, so for as long as a sheet is open
+   the running total was simply not on screen — and, being inert, not in the
+   accessibility tree either. ARCHITECTURE §11 says it never leaves, so every
+   sheet head carries it, and the mirror in the open sheet is also the one live
+   region for the figure while that sheet is open.
+
+   It lives in .sheet__head rather than in .sheet__body so that scrolling a long
+   sheet cannot scroll the total away either — the head is outside the scroller,
+   as the note on .sheet__head above explains. The auto margins put it between
+   the title and the close button, the same order as brand · meter · chip in the
+   page header, so it is in the place the user already learned. */
+.sheet__meter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  flex: none;
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+.sheet__meter .money { font-size: var(--f-3); font-weight: 650; }
+
+.sheet__close { margin-inline-start: auto; min-width: var(--tap); min-height: var(--tap); cursor: pointer; }
+
+.sheet__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;   /* the page behind never scrolls with it */
+  padding: var(--s-4) var(--s-3) calc(var(--s-5) + env(safe-area-inset-bottom));
+}
+
+/* Rhythm inside a sheet. The reset zeroes every margin, so the vertical space
+   between a section heading, its explanation and the form under it is stated
+   here once rather than sprinkled over the markup. */
+.sheet__body > h3 { margin-top: var(--s-5); margin-bottom: var(--s-1); }
+.sheet__body > p  { margin-bottom: var(--s-3); }
+
+/* the grab handle: geometry, not an image */
+.sheet__grip {
+  width: 36px;
+  height: 4px;
+  background: var(--hair);
+  margin: var(--s-2) auto 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   13  FORMS
+   Native controls, sized for thumbs, labelled in full. 16px minimum on inputs
+   because anything smaller makes iOS zoom the viewport on focus, and a
+   viewport that jumps on focus is not smooth.
+   -------------------------------------------------------------------------- */
+
+.field { display: block; margin-bottom: var(--s-4); }
+.field > label,
+.field > .field__label { display: block; font-size: var(--f-2); font-weight: 650; margin-bottom: var(--s-1); }
+.field__hint { display: block; font-size: var(--f-2); color: var(--mute); margin-top: var(--s-1); }
+
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s-2);
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--hairline) solid var(--ink);
+  border-radius: var(--radius);
+  font-size: 1rem;
+}
+textarea { resize: vertical; min-height: 5rem; line-height: 1.5; }
+input::placeholder, textarea::placeholder { color: var(--mute); }
+/* A disabled control is still a control, and its outline is how you find it.
+   These borders were --hair, which is a 1.43:1 line: on a white screen the
+   field simply vanished and the label floated above nothing. --mute is the
+   same grey the disabled text is set in — 5.33:1 on paper, 7.56:1 on ink — so
+   the box is plainly there and plainly not available. */
+input:disabled, textarea:disabled, select:disabled {
+  color: var(--mute);
+  border-color: var(--mute);
+  cursor: not-allowed;
+}
+input[type="file"] {
+  border: var(--hairline) dashed var(--ink);
+  padding: var(--s-3);
+  min-height: var(--tap);
+}
+
+/* <summary> is an interactive control that the platform hands us with no class
+   to hang anything on, so it was missed: the "this session" disclosure in the
+   wallet was the height of its own 11px line box, about 16px, and it is the
+   only way to reach the itemised spend. Padding rather than a flex display,
+   because changing a summary's display box removes its disclosure marker. */
+summary {
+  min-height: var(--tap);
+  padding-block: var(--s-3);
+  cursor: pointer;
+}
+
+/* the receipt: every line of what an action will cost, before it is sent */
+.receipt {
+  border-block: var(--hairline) solid var(--hair);
+  margin-block: var(--s-4);
+  font-size: var(--f-3);
+}
+.receipt > div,
+.receipt > li {
+  display: flex;
+  gap: var(--s-3);
+  justify-content: space-between;
+  padding: var(--s-2) 0;
+  list-style: none;
+}
+.receipt > div + div,
+.receipt > li + li { border-top: var(--hairline) solid var(--hair); }
+.receipt dt, .receipt .k { color: var(--mute); }
+.receipt dd, .receipt .v { font-variant-numeric: tabular-nums; margin: 0; }
+.receipt .is-total { font-weight: 700; }
+.receipt .is-total .k { color: var(--ink); }
+
+/* the slippage line: the price you were shown, the worst fill you accept, and
+   how far the pool moves under you. A swap that fills at a price the screen
+   never showed is refused, so the screen has to show it. */
+.slippage {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-1) var(--s-3);
+  font-size: var(--f-2);
+  font-variant-numeric: tabular-nums;
+  padding: var(--s-3) 0;
+}
+.slippage .k { color: var(--mute); }
+.slippage .v { text-align: end; }
+.slippage[data-impact="high"] .v { font-weight: 700; }
+.slippage[data-impact="high"]::after {
+  content: "this trade moves the pool. check the minimum you receive.";
+  grid-column: 1 / -1;
+  color: var(--ink);
+  border: var(--hairline) solid var(--ink);
+  padding: var(--s-2);
+}
+
+/* segmented control: two hard-edged halves, the selected one inverted */
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: var(--hairline) solid var(--ink); }
+.segmented label {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap);
+  font-size: var(--f-3);
+  cursor: pointer;
+}
+.segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented input:checked + span { background: var(--ink); color: var(--paper); }
+.segmented label > span { display: grid; place-items: center; width: 100%; height: 100%; padding: 0 var(--s-2); }
+
+/* The real radio is transparent, so the ring has to be drawn on the label, and
+   it has to be drawn inside it because the two halves share a border. Same
+   two-ring rule as the global one, turned inward: an inset paper band at
+   0–2px, the ink outline over 2–4px. The selected half is ink, so the paper
+   band carries it there; the unselected half is paper, so the ink outline
+   carries it there. A single inset ink ring was invisible on the selected
+   half, which is the half a keyboard lands on first. */
+.segmented input:focus-visible + span {
+  outline: var(--ring) solid var(--ink);
+  outline-offset: calc(var(--ring-reach) * -1);
+  box-shadow: inset 0 0 0 var(--ring-gap) var(--paper);
+}
+
+
+/* --------------------------------------------------------------------------
+   14  BUTTONS
+   Two weights: an inverted block for the act that spends money, an outlined
+   one for everything else. Disabled is grey, never a faded colour, because
+   there are no colours to fade.
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border: var(--hairline) solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--f-4);
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--motion) linear, color var(--motion) linear;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn:active { transform: translateY(1px); }
+
+.btn--primary { background: var(--ink); color: var(--paper); }
+.btn--primary:hover { background: var(--paper); color: var(--ink); }
+
+.btn--wide { width: 100%; }
+
+/* A quiet button borrows the colours of whatever it is sitting on instead of
+   forcing paper-and-ink, and that is a correctness fix rather than a stylistic
+   one. #app-banner-retry is a .btn--quiet inside .banner, and .banner is an ink
+   surface with paper text. The old rule set `background: transparent` together
+   with `color: var(--ink)` on hover, which put ink text on the ink banner:
+   pointing at the retry button — the only control on the one strip that tells
+   you the network is gone — erased its label. `color: inherit` takes paper from
+   the banner and ink from the page, so the label is 21:1 on both, and
+   currentColor draws the hover edge in whichever of the two it turned out to
+   be. */
+.btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  font-weight: 400;
+}
+.btn--quiet:hover { background: transparent; color: inherit; border-color: currentColor; }
+
+/* Disabled is grey, never a faded colour — but the border is --mute and not
+   --hair. A 1.43:1 border made a disabled primary button read as a stray line
+   of text with no edges; at 5.33:1 it still reads as unavailable and still
+   reads as a button. WCAG 1.4.11 exempts inactive controls from its 3:1 floor;
+   we hold the floor anyway, because "you may not press this" is only useful
+   once you can see the thing you may not press. */
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  border-color: var(--mute);
+  background: var(--paper);
+  color: var(--mute);
+  cursor: not-allowed;
+  transform: none;
+}
+.btn[disabled]:hover,
+.btn[aria-disabled="true"]:hover { background: var(--paper); color: var(--mute); }
+
+/* A button that is waiting on the network wears the same edge as a disabled
+   one, because that is what it is until the writer answers.
+
+   The selector matches the ATTRIBUTE, not a value. It used to be
+   [data-busy="1"] while the hook contract and DESIGN §8 both said [data-busy],
+   so an app.mjs that wrote data-busy="true" — the obvious thing to write —
+   would have got a button that still looked pressable while an act that spends
+   money was in flight, and no error anywhere to say so. Presence is the state:
+   the contract now says set it to the empty string and remove it when the act
+   resolves, because [data-busy="false"] would still match this rule. */
+.btn[data-busy] { color: var(--mute); border-color: var(--mute); }
+
+
+/* --------------------------------------------------------------------------
+   15  TOASTS
+   Every refusal in this app carries a code, a mechanism and a next step —
+   that is what core/errors.mjs publishes and it is what the toast prints. A
+   user who is refused learns the same three things a bot would parse.
+   -------------------------------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(var(--bar-h) + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  pointer-events: none;
+  justify-items: center;
+}
+
+/* The inline refusal slot: the same toast, printed beside the form it refuses
+   instead of floating over the bottom bar. Four of these ship empty
+   (#composer-error, #buy-error, #burn-error, #register-error) and app.mjs fills
+   a #tpl-toast clone and inserts it here.
+
+   The slot has no [hidden] state and must never be given one, which is the
+   whole point of it. These four used to BE the refusal — a role="alert" region
+   shipping hidden, filled while hidden, then revealed — and a hidden subtree is
+   not in the accessibility tree, so the sentence was already in place by the
+   time the region arrived in it and was never announced. An empty grid with no
+   padding is zero pixels tall, so a slot that is holding nothing costs nothing
+   and needs no hiding; the rhythm around it appears with the toast that fills
+   it. Display stays at one class of specificity so [hidden] would still win if
+   anyone ever did hide one. */
+.error-slot { display: grid; gap: var(--s-2); }
+.error-slot:not(:empty) { margin-block: var(--s-4); }
+
+.toast {
+  pointer-events: auto;
+  width: 100%;
+  max-width: calc(var(--col) - var(--s-5));
+  background: var(--ink);
+  color: var(--paper);
+  padding: var(--s-3);
+  display: grid;
+  gap: var(--s-1);
+  animation: toast-in var(--motion) var(--ease);
+}
+.toast__code { font-family: var(--mono); font-size: var(--f-1); letter-spacing: .06em; opacity: .8; }
+.toast__msg  { font-size: var(--f-3); font-weight: 650; }
+.toast__next { font-size: var(--f-2); }
+.toast__close {
+  position: absolute;
+  inset-block-start: var(--s-1);
+  inset-inline-end: var(--s-1);
+  min-width: var(--tap);
+  min-height: var(--tap);
+  cursor: pointer;
+}
+.toast { position: relative; padding-inline-end: var(--tap); }
+/* There is no outline-colour override here any more. The old one repainted the
+   ring paper so it would show against the toast's ink body — but the ring is
+   drawn outside the toast, over the paper page, where a paper ring is nothing
+   at all. The two-ring rule in section 4 covers this surface and its close
+   button without a special case. */
+
+@keyframes toast-in {
+  from { transform: translateY(.5rem); }
+  to   { transform: translateY(0); }
+}
+
+
+/* --------------------------------------------------------------------------
+   16  SKELETONS, EMPTY STATES, BANNERS
+   A skeleton is grey because it is the absence of content, which is the same
+   family as a disabled control. It reserves the exact geometry of the card it
+   stands in for, so the real card lands without moving anything.
+   -------------------------------------------------------------------------- */
+
+.skeleton { pointer-events: none; }
+.skeleton .sk {
+  background: var(--fill);
+  animation: sk-pulse calc(var(--motion) * 8) linear infinite alternate;
+}
+.skeleton .sk--line   { height: .75rem; margin: var(--s-2) var(--s-3); }
+.skeleton .sk--short  { width: 40%; }
+.skeleton .sk--frame  { aspect-ratio: 4 / 5; margin: 0; }
+
+@keyframes sk-pulse {
+  from { opacity: 1; }
+  to   { opacity: .45; }
+}
+
+.empty {
+  padding: var(--s-7) var(--s-4);
+  text-align: center;
+  color: var(--mute);
+  display: grid;
+  gap: var(--s-3);
+  justify-items: center;
+}
+.empty h2 { color: var(--ink); }
+
+.banner {
+  border-bottom: var(--hairline) solid var(--hair);
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--f-2);
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.notice {
+  border: var(--hairline) solid var(--hair);
+  padding: var(--s-3);
+  font-size: var(--f-2);
+  color: var(--mute);
+  margin-block: var(--s-4);
+}
+.notice strong { color: var(--ink); }
+
+.feed-end { padding: var(--s-6) var(--s-3); text-align: center; color: var(--mute); font-size: var(--f-2); }
+
+
+/* --------------------------------------------------------------------------
+   17  UTILITIES
+   -------------------------------------------------------------------------- */
+
+.vh {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+/* a skip link is only useful if it appears when a keyboard reaches it — and it
+   is a target like any other, so it holds the same 44px floor once it is. */
+.vh:focus-visible {
+  position: fixed;
+  inset-block-start: var(--s-2);
+  inset-inline-start: var(--s-2);
+  z-index: 40;
+  width: auto; height: auto;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  clip-path: none;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.row { display: flex; align-items: center; gap: var(--s-2); }
+.row--between { justify-content: space-between; }
+.stack { display: grid; gap: var(--s-3); }
+.pad { padding-inline: var(--s-3); }
+.rule { border: 0; border-top: var(--hairline) solid var(--hair); margin-block: var(--s-4); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caption { padding-top: var(--s-2); }
+.input--narrow { max-width: 6rem; }
+
+[hidden] { display: none; }
+
+
+/* --------------------------------------------------------------------------
+   18  REDUCED MOTION
+   One rule, and it is the reason --motion exists. Setting the duration token
+   to zero removes every transition and every animation in the file at once —
+   no component override, no !important, and no chance of a new component
+   quietly opting itself back in.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion: 0s; }
+  .btn:active { transform: none; }
+  html { scroll-behavior: auto; }
+}
