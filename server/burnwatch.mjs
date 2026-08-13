@@ -358,6 +358,8 @@ function viewsForWire(views) {
  */
 export function burnFacts({ minConfirmations = MIN_CONFIRMATIONS, explorers = [] } = {}) {
   return {
+    // The address first, because it is the only field a person can act on.
+    burnAddress: burnAddress(),
     scriptHex: BURN_SCRIPT_HEX,
     witnessScriptHex: BURN_WITNESS_SCRIPT_HEX,
     kind: 'p2wsh(OP_RETURN)',
@@ -369,4 +371,84 @@ export function burnFacts({ minConfirmations = MIN_CONFIRMATIONS, explorers = []
     tolerance: CONFIRMATION_TOLERANCE,
     next: 'Send to this output, wait for the confirmations, then POST /api/v1/act with k="burnClaim" naming the txid, the vout and the satoshis.',
   };
+}
+
+// ── the address a person can actually paste ────────────────────────────────
+//
+// `scriptHex` is the truth and bech32 is the presentation of it, but a truth
+// nobody can send to is not an on-ramp. Burn is the ONLY way into this network
+// (ARCHITECTURE rule 3), and until this existed the app told newcomers "this
+// host publishes no burn address" while the host was publishing the script it
+// is derived from. A network with no reachable door is not open, it is shut
+// politely.
+//
+// BIP-173 bech32 over the segwit v0 witness program. Written out rather than
+// depended on for the same reason everything else here is: forty lines against
+// a package, and this one has to agree with every wallet in the world, so it is
+// checked against the BIP's own vectors in test/server.test.mjs.
+
+const BECH32_ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+function bech32Polymod(values) {
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let chk = 1;
+  for (const v of values) {
+    const top = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ v;
+    for (let i = 0; i < 5; i++) if ((top >> i) & 1) chk ^= GEN[i];
+  }
+  return chk;
+}
+
+function bech32HrpExpand(hrp) {
+  const out = [];
+  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >> 5);
+  out.push(0);
+  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31);
+  return out;
+}
+
+/** Regroup bits, as BIP-173's convertbits. Used here only for 8 -> 5. */
+function convertBits(data, from, to, pad) {
+  let acc = 0;
+  let bits = 0;
+  const out = [];
+  const maxv = (1 << to) - 1;
+  for (const value of data) {
+    if (value < 0 || value >> from !== 0) throw new Error('bech32: byte out of range');
+    acc = (acc << from) | value;
+    bits += from;
+    while (bits >= to) {
+      bits -= to;
+      out.push((acc >> bits) & maxv);
+    }
+  }
+  if (pad && bits > 0) out.push((acc << (to - bits)) & maxv);
+  else if (!pad && (bits >= from || ((acc << (to - bits)) & maxv))) throw new Error('bech32: cannot convert');
+  return out;
+}
+
+/**
+ * The bech32 address for a segwit v0 witness program.
+ *
+ * Only version 0 is handled, because only version 0 is what this output is: a
+ * P2WSH commitment to a script that can never be satisfied. A v1+ program would
+ * need bech32m, which is a different checksum constant, and guessing at it would
+ * produce an address that looks right and sends bitcoin nowhere recoverable.
+ */
+export function bech32Address(programBytes, hrp = 'bc') {
+  if (programBytes.length !== 32) throw new Error('bech32: a P2WSH program is 32 bytes');
+  const data = [0, ...convertBits(programBytes, 8, 5, true)];
+  const checksumInput = [...bech32HrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
+  const polymod = bech32Polymod(checksumInput) ^ 1;
+  const checksum = [];
+  for (let i = 0; i < 6; i++) checksum.push((polymod >> (5 * (5 - i))) & 31);
+  return hrp + '1' + [...data, ...checksum].map((d) => BECH32_ALPHABET[d]).join('');
+}
+
+/** The burn output as an address, on the network the host is configured for. */
+export function burnAddress(hrp = 'bc') {
+  // BURN_SCRIPT_HEX is "0020" (OP_0, push 32) followed by the program.
+  const program = Buffer.from(BURN_SCRIPT_HEX.slice(4), 'hex');
+  return bech32Address(program, hrp);
 }

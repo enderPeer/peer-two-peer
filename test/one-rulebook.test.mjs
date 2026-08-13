@@ -58,7 +58,7 @@ import { parseCanonical } from '../core/canonical.mjs';
 import { PARAMS } from '../core/params.mjs';
 import { editionsOf } from '../server/chain/block.mjs';
 import { createServer, addressOf, signAct } from '../server/index.mjs';
-import { BURN_SCRIPT_HEX } from '../server/burnwatch.mjs';
+import { BURN_SCRIPT_HEX, bech32Address } from '../server/burnwatch.mjs';
 
 const ROOT = new URL('../', import.meta.url);
 const RULEBOOK_URL = new URL('core/replay.mjs', ROOT);
@@ -614,4 +614,24 @@ test('the act log is served verbatim, and replaying it reproduces the host', asy
   assert.equal(mine.supply.burned, srv.world.supply.burned);
   assert.equal(Object.keys(mine.accounts).length, Object.keys(srv.world.accounts).length);
   assert.equal(Object.keys(mine.posts).length, Object.keys(srv.world.posts).length);
+});
+
+test('the host publishes a burn address a person can actually send to', async (t) => {
+  const { srv } = await writer(t);
+  const { url } = await srv.listen(0);
+  const body = await (await fetch(url.replace(/\/$/, '') + '/api/v1/burn')).json();
+
+  // Rule 3 makes burn the only way in, so this field is the network's front
+  // door. It published only `scriptHex` — the truth, but not something anybody
+  // can paste into a wallet — and the app said "this host publishes no burn
+  // address" as a result.
+  assert.match(body.burnAddress, /^bc1[02-9ac-hj-np-z]{39,71}$/, 'a bech32 P2WSH address');
+  assert.equal(body.burnAddress, bech32Address(Buffer.from(body.scriptHex.slice(4), 'hex')));
+
+  // And it is really the script's own address, checked against BIP-173's own
+  // vector rather than against this implementation's opinion of itself.
+  assert.equal(
+    bech32Address(Buffer.from('1863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262', 'hex')),
+    'bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3'
+  );
 });
