@@ -1,18 +1,18 @@
 {
-  "checked": "2026-08-14T06:40:28.416Z",
-  "anyLive": true,
+  "checked": "2026-08-14T08:00:53.670Z",
+  "anyLive": false,
   "writer": null,
   "writerChain": null,
   "writerActs": null,
   "hosts": [
     {
       "url": "https://supplies-dam-susan-bookstore.trycloudflare.com",
-      "live": true,
+      "live": false,
       "writer": false,
       "chain": null,
       "epoch": null,
       "acts": null,
-      "error": null
+      "error": "HTTP 530"
     }
   ],
   "note": "Written every 15 minutes by a scheduled GitHub Action on machines nobody here owns, so it keeps answering when every machine of ours is off. It probes the hosts named in host.json and repoints that file; it never touches the record."
