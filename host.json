@@ -7,7 +7,7 @@
   "candidates": [
     "https://supplies-dam-susan-bookstore.trycloudflare.com"
   ],
-  "checked": "2026-08-20T20:01:22.022Z",
+  "checked": "2026-08-20T20:42:42.163Z",
   "checkedBy": "liveness workflow (.github/workflows/liveness.yml)",
   "archive": "archive/",
   "note": "No published host answered at the last check, so this file names none on purpose: the app loads the archive published beside it and runs read-only, rather than waiting out a timeout on a dead address. Every address is kept in `candidates` and restored the moment one answers again."
